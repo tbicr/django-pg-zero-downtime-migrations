@@ -47,7 +47,7 @@ Lets split this lock to migration and business logic operations.
 | `ROW SHARE`     | `SELECT FOR UPDATE`          | `ACCESS EXCLUSIVE`, `EXCLUSIVE`                                 | `ALTER TABLE`, `DROP INDEX`                 |
 | `ROW EXCLUSIVE` | `INSERT`, `UPDATE`, `DELETE` | `ACCESS EXCLUSIVE`, `EXCLUSIVE`, `SHARE ROW EXCLUSIVE`, `SHARE` | `ALTER TABLE`, `DROP INDEX`, `CREATE INDEX` |
 
-So you can find that all django schema changes for exist table conflicts with business logic, but fortunately we can
+So you can find that all django schema changes for exist table conflicts with business logic, but fortunately they are safe or has safe alternative in general.
 
 ## Operations FIFO waiting
 
@@ -96,4 +96,5 @@ In this diagram we can extract several metrics:
 | 28 | `DROP INDEX`                                  | X    | `DROP INDEX CONCURRENTLY`    | safe operation ??? ANY OPERATION INSIDE ???
 
 \*: postgresql will check that all items in column `NOT NULL` that take time, lets look this point closely below
+
 \*\*: postgresql will have same behaviour when you skip `ALTER TABLE ADD CONSTRAINT UNIQUE USING INDEX`, lets look this point closely below
