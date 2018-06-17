@@ -1,7 +1,7 @@
 # django-pg-zero-downtime-migrations
 Django postgresql backend that apply migrations with respect to database locks.
 
-## Postgresql locks
+## Postgres locks
 
 Postgres has different lock levels that can conflict with each other https://www.postgresql.org/docs/current/static/explicit-locking.html:
 
@@ -51,7 +51,7 @@ So you can find that all django schema changes for exist table conflicts with bu
 
 ## Transactions FIFO waiting
 
-![postgresql FIFO](fifo-diagram.png "postgresql FIFO")
+![postgres FIFO](fifo-diagram.png "postgres FIFO")
 
 Fond same diagram in interesting article http://pankrat.github.io/2015/django-migrations-without-downtimes/.
 
@@ -64,7 +64,7 @@ In this diagram we can extract several metrics:
 
 ## Dealing with timeouts
 
-Postgresql has two settings to dealing with `waiting time` and `operation time` presented in diagram: `lock_timeout` and `statement_timeout`.
+Postgres has two settings to dealing with `waiting time` and `operation time` presented in diagram: `lock_timeout` and `statement_timeout`.
 
 `SET lock_timeout TO '2s'` allow you to avoid downtime when you have long running query/transaction before run migration.
 
@@ -105,9 +105,9 @@ Any schema changes can be processed with creation of new table and copy data to 
 | 27 | `CREATE INDEX`                                |      | `CREATE INDEX CONCURRENTLY`   | **unsafe operation**, because you spend time in migration to create index
 | 28 | `DROP INDEX`                                  | X    | `DROP INDEX CONCURRENTLY`     | safe operation  \*\*\*\*
 
-\*: postgresql will check that all items in column `NOT NULL` that take time, lets look this point closely below
+\*: postgres will check that all items in column `NOT NULL` that take time, lets look this point closely below
 
-\*\*: postgresql will have same behaviour when you skip `ALTER TABLE ADD CONSTRAINT UNIQUE USING INDEX`, lets look this point closely below
+\*\*: postgres will have same behaviour when you skip `ALTER TABLE ADD CONSTRAINT UNIQUE USING INDEX`, lets look this point closely below
 
 \*\*\*: lets look this point closely below
 
