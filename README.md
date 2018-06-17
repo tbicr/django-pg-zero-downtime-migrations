@@ -103,12 +103,32 @@ Any schema changes can be processed with creation of new table and copy data to 
 | 25 | `ALTER TABLE ADD CONSTRAINT UNIQUE`           |      | add index and add constraint  | **unsafe operation**, because you spend time in migration to create index \*\*
 | 26 | `ALTER TABLE DROP CONSTRAINT` (`UNIQUE`)      | X    |                               | safe operation \*\*
 | 27 | `CREATE INDEX`                                |      | `CREATE INDEX CONCURRENTLY`   | **unsafe operation**, because you spend time in migration to create index
-| 28 | `DROP INDEX`                                  | X    | `DROP INDEX CONCURRENTLY`     | safe operation  \*\*\*\*
+| 28 | `DROP INDEX`                                  | X    | `DROP INDEX CONCURRENTLY`     | safe operation  \*\*
 
 \*: postgres will check that all items in column `NOT NULL` that take time, lets look this point closely below
 
-\*\*: postgres will have same behaviour when you skip `ALTER TABLE ADD CONSTRAINT UNIQUE USING INDEX`, lets look this point closely below
+\*\*: postgres will have same behaviour when you skip `ALTER TABLE ADD CONSTRAINT UNIQUE USING INDEX` and still unclear difference with `CONCURRENTLY` except difference in locks, lets look this point closely below
 
 \*\*\*: lets look this point closely below
 
-\*\*\*\*: still unclear difference with `CONCURRENTLY` except difference in locks
+### Dealing with `NOT NULL` constraint
+
+Postgres check that all column items `NOT NULL` when you applying `NOT NULL` constraint, unfortunately you can't defer this check as for `NOT VALID`. But we have some hacks and alternatives there.
+
+1. Run migrations when load minimal to avoid negative affect of locking.
+2. `SET statement_timeout` and try to set `NOT NULL` constraint for small tables.
+3. Use `CHECK (column IS NOT NULL)` constraint instead that support `NOT VALID` option with next `VALIDATE CONSTRAINT`, see article for details https://medium.com/doctolib-engineering/adding-a-not-null-constraint-on-pg-faster-with-minimal-locking-38b2c00c4d1c.
+
+### Dealing with `UNIQUE` constraint
+
+Postgres has two approaches for uniqueness: `CREATE UNIQUE INDEX` and `ALTER TABLE ADD CONSTRAINT UNIQUE` - both use unique index inside. Difference that I see that you cannot apply `DROP INDEX CONCURRENTLY` for constraint. However still unclear what difference for `DROP INDEX` and `DROP INDEX CONCURRENTLY` except difference in locks, but as you see before both marked as safe - you don't spend time in `DROP INDEX`, just wait for lock. So as django use constraint for uniqueness we also have a hacks to use constraint safely.
+
+### Dealing with `ALTER TABLE ALTER COLUMN TYPE`
+
+Next operations are safe:
+
+1. `varchar(LESS)` to `varchar(MORE)` where LESS < MORE
+2. `varchar(ANY)` to `text`
+3. `numeric(LESS, SAME)` to `numeric(MORE, SAME)` where LESS < MORE and SAME == SAME
+
+For other operations propose to create new column and copy data to it. Eg. some types can be also safe, but you should check yourself.
