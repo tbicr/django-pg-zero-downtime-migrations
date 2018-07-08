@@ -1,9 +1,9 @@
 # django-pg-zero-downtime-migrations
 Django postgresql backend that apply migrations with respect to database locks.
 
-## Postgres locks
+## Postgres table level locks
 
-Postgres has different lock levels that can conflict with each other https://www.postgresql.org/docs/current/static/explicit-locking.html:
+Postgres has different locks on table level that can conflict with each other https://www.postgresql.org/docs/current/static/explicit-locking.html#LOCKING-TABLES:
 
 |                          | `ACCESS SHARE` | `ROW SHARE` | `ROW EXCLUSIVE` | `SHARE UPDATE EXCLUSIVE` | `SHARE` | `SHARE ROW EXCLUSIVE` | `EXCLUSIVE` | `ACCESS EXCLUSIVE` |
 |--------------------------|:--------------:|:-----------:|:---------------:|:------------------------:|:-------:|:---------------------:|:-----------:|:------------------:|
@@ -48,6 +48,19 @@ Lets split this lock to migration and business logic operations.
 | `ROW EXCLUSIVE` | `INSERT`, `UPDATE`, `DELETE` | `ACCESS EXCLUSIVE`, `EXCLUSIVE`, `SHARE ROW EXCLUSIVE`, `SHARE` | `ALTER TABLE`, `DROP INDEX`, `CREATE INDEX` |
 
 So you can find that all django schema changes for exist table conflicts with business logic, but fortunately they are safe or has safe alternative in general.
+
+## Postgres row level locks
+
+As business logic mostly works with table rows it's also important to understand lock conflicts on row level https://www.postgresql.org/docs/current/static/explicit-locking.html#LOCKING-ROWS:
+
+| lock                | `FOR KEY SHARE` | `FOR SHARE` | `FOR NO KEY UPDATE` | `FOR UPDATE` |
+|---------------------|:---------------:|:-----------:|:-------------------:|:------------:|
+| `FOR KEY SHARE`     |                 |             |                     | X            |
+| `FOR SHARE`         |                 |             | X                   | X            |
+| `FOR NO KEY UPDATE` |                 | X           | X                   | X            |
+| `FOR UPDATE`        | X               | X           | X                   | X            |
+
+Main point there is if you have two transactions that update one row, then second transaction will wait until first will be completed. So for business logic and data migrations better to avoid updates for whole table and use batch updates instead.
 
 ## Transactions FIFO waiting
 
