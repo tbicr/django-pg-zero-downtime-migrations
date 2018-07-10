@@ -73,9 +73,6 @@ class DatabaseSchemaEditor(PostgresDatabaseSchemaEditor):
         self.execute(self.sql_set_lock_timeout % {"lock_timeout": self.LOCK_TIMEOUT})
         self.execute(self.sql_set_statement_timeout % {"statement_timeout": self.STATEMENT_TIMEOUT})
 
-    def __enter__(self):
-        self.deferred_sql = []
-
     def alter_db_table(self, model, old_db_table, new_db_table):
         if self.RAISE_FOR_UNSAFE:
             raise UnsafeOperationException("ALTER TABLE RENAME is unsafe operation")
