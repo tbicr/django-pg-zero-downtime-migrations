@@ -1,0 +1,7 @@
+language: python
+
+services:
+  - docker
+
+script:
+  - docker build -t django_pg_zero_downtime_tests . && docker run -it django_pg_zero_downtime_tests tox

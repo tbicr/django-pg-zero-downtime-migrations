@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/tbicr/django-pg-zero-downtime-migrations.svg?branch=master)](https://travis-ci.org/tbicr/django-pg-zero-downtime-migrations)
+
 # django-pg-zero-downtime-migrations
 Django postgresql backend that apply migrations with respect to database locks.
 
