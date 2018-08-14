@@ -2,6 +2,7 @@ import re
 import warnings
 
 from django.conf import settings
+from django.db.backends.ddl_references import Statement
 from django.db.backends.postgresql.schema import (
     DatabaseSchemaEditor as PostgresDatabaseSchemaEditor
 )
@@ -19,29 +20,50 @@ class UnsafeOperationException(Exception):
     pass
 
 
+class MultiStatementSQL(list):
+
+    def __init__(self, obj, *args):
+        if args:
+            obj = [obj] + list(args)
+        super().__init__(obj)
+
+    def __str__(self):
+        return '\n'.join(s.rstrip(';') + ';' for s in self)
+
+    def __repr__(self):
+        return str(self)
+
+    def __mod__(self, other):
+        return MultiStatementSQL(s % other for s in self)
+
+    def format(self, *args, **kwargs):
+        return MultiStatementSQL(s.format(*args, **kwargs) for s in self)
+
+
 class DatabaseSchemaEditor(PostgresDatabaseSchemaEditor):
 
     sql_set_lock_timeout = "SET lock_timeout TO '%(lock_timeout)s'"
     sql_set_statement_timeout = "SET statement_timeout TO '%(statement_timeout)s'"
 
-    sql_create_check = (
-        "ALTER TABLE %(table)s ADD CONSTRAINT %(name)s CHECK (%(check)s) NOT VALID;"
-        "ALTER TABLE %(table)s VALIDATE CONSTRAINT %(name)s;"
+    sql_create_check = MultiStatementSQL(
+        "ALTER TABLE %(table)s ADD CONSTRAINT %(name)s CHECK (%(check)s) NOT VALID;",
+        "ALTER TABLE %(table)s VALIDATE CONSTRAINT %(name)s;",
     )
 
-    sql_create_unique = (
-        "CREATE UNIQUE INDEX CONCURRENTLY %(name)s ON %(table)s (%(columns)s);"
-        "ALTER TABLE %(table)s ADD CONSTRAINT %(name)s UNIQUE USING INDEX %(name)s;")
+    sql_create_unique = MultiStatementSQL(
+        "CREATE UNIQUE INDEX CONCURRENTLY %(name)s ON %(table)s (%(columns)s);",
+        "ALTER TABLE %(table)s ADD CONSTRAINT %(name)s UNIQUE USING INDEX %(name)s;",
+    )
 
-    sql_create_fk = (
+    sql_create_fk = MultiStatementSQL(
         "ALTER TABLE %(table)s ADD CONSTRAINT %(name)s FOREIGN KEY (%(column)s) "
-        "REFERENCES %(to_table)s (%(to_column)s)%(deferrable)s NOT VALID;"
-        "ALTER TABLE %(table)s VALIDATE CONSTRAINT %(name)s;"
+        "REFERENCES %(to_table)s (%(to_column)s)%(deferrable)s NOT VALID;",
+        "ALTER TABLE %(table)s VALIDATE CONSTRAINT %(name)s;",
     )
 
-    sql_create_pk = (
-        "CREATE UNIQUE INDEX CONCURRENTLY %(name)s ON %(table)s (%(columns)s);"
-        "ALTER TABLE %(table)s ADD CONSTRAINT %(name)s PRIMARY KEY USING INDEX %(name)s;"
+    sql_create_pk = MultiStatementSQL(
+        "CREATE UNIQUE INDEX CONCURRENTLY %(name)s ON %(table)s (%(columns)s);",
+        "ALTER TABLE %(table)s ADD CONSTRAINT %(name)s PRIMARY KEY USING INDEX %(name)s;",
     )
 
     sql_create_index = "CREATE INDEX CONCURRENTLY %(name)s ON %(table)s%(using)s (%(columns)s)%(extra)s"
@@ -56,9 +78,9 @@ class DatabaseSchemaEditor(PostgresDatabaseSchemaEditor):
         "SELECT conname FROM pg_constraint "
         "WHERE contype = 'c' AND conrelid = '%(table)s'::regclass AND consrc = '(%(columns)s IS NOT NULL)'"
     )
-    _sql_column_not_null_compatible = (
-        "ALTER TABLE %(table)s ADD CONSTRAINT %(name)s CHECK (%(column)s IS NOT NULL) NOT VALID;"
-        "ALTER TABLE %(table)s VALIDATE CONSTRAINT %(name)s;"
+    _sql_column_not_null_compatible = MultiStatementSQL(
+        "ALTER TABLE %(table)s ADD CONSTRAINT %(name)s CHECK (%(column)s IS NOT NULL) NOT VALID;",
+        "ALTER TABLE %(table)s VALIDATE CONSTRAINT %(name)s;",
     )
 
     _varchar_type_regexp = re.compile('^varchar\((?P<max_length>\d+)\)$')
@@ -72,6 +94,17 @@ class DatabaseSchemaEditor(PostgresDatabaseSchemaEditor):
         super().__init__(connection, collect_sql=collect_sql, atomic=False)
         self.execute(self.sql_set_lock_timeout % {"lock_timeout": self.LOCK_TIMEOUT})
         self.execute(self.sql_set_statement_timeout % {"statement_timeout": self.STATEMENT_TIMEOUT})
+
+    def execute(self, sql, params=()):
+        statements = []
+        if isinstance(sql, MultiStatementSQL):
+            statements.extend(sql)
+        elif isinstance(sql, Statement) and isinstance(sql.template, MultiStatementSQL):
+            statements.extend(Statement(s, **sql.parts) for s in sql.template)
+        else:
+            statements.append(sql)
+        for statement in statements:
+            super().execute(statement, params)
 
     def alter_db_table(self, model, old_db_table, new_db_table):
         if self.RAISE_FOR_UNSAFE:

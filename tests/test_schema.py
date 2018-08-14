@@ -166,15 +166,9 @@ def test_add_field_with_not_null__use_compatible_constraint_for_large_tables__ok
     assert editor.collected_sql == TIMEOUTS + [
         'ALTER TABLE "tests_model" ADD COLUMN "field" varchar(40);',
         'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_notnull" '
-        'CHECK ("field" IS NOT NULL) NOT VALID;'
+        'CHECK ("field" IS NOT NULL) NOT VALID;',
         'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_notnull";',
     ]
-    # assert editor.collected_sql == TIMEOUTS + [
-    #     'ALTER TABLE "tests_model" ADD COLUMN "field" varchar(40);',
-    #     'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_notnull" '
-    #     'CHECK ("field" IS NOT NULL) NOT VALID;',
-    #     'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_notnull";',
-    # ]
 
 
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
@@ -188,15 +182,9 @@ def test_add_field_with_not_null__use_compatible_constraint_for_all_tables__ok()
     assert editor.collected_sql == TIMEOUTS + [
         'ALTER TABLE "tests_model" ADD COLUMN "field" varchar(40);',
         'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_notnull" '
-        'CHECK ("field" IS NOT NULL) NOT VALID;'
+        'CHECK ("field" IS NOT NULL) NOT VALID;',
         'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_notnull";',
     ]
-    # assert editor.collected_sql == TIMEOUTS + [
-    #     'ALTER TABLE "tests_model" ADD COLUMN "field" varchar(40);',
-    #     'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_notnull" '
-    #     'CHECK ("field" IS NOT NULL) NOT VALID;',
-    #     'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_notnull";',
-    # ]
 
 
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
@@ -210,16 +198,9 @@ def test_add_field_with_foreign_key__ok():
         'ALTER TABLE "tests_model" ADD COLUMN "field_id" integer NULL;',
         'CREATE INDEX CONCURRENTLY "tests_model_field_id_0166400c" ON "tests_model" ("field_id");',
         'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_id_0166400c_fk_tests_model2_id" '
-        'FOREIGN KEY ("field_id") REFERENCES "tests_model2" ("id") DEFERRABLE INITIALLY DEFERRED NOT VALID;'
+        'FOREIGN KEY ("field_id") REFERENCES "tests_model2" ("id") DEFERRABLE INITIALLY DEFERRED NOT VALID;',
         'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_id_0166400c_fk_tests_model2_id";',
     ]
-    # assert editor.collected_sql == TIMEOUTS + [
-    #     'ALTER TABLE "tests_model" ADD COLUMN "field_id" integer NULL;',
-    #     'CREATE INDEX CONCURRENTLY "tests_model_field_id_0166400c" ON "tests_model" ("field_id");',
-    #     'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_id_0166400c_fk_tests_model2_id" '
-    #     'FOREIGN KEY ("field_id") REFERENCES "tests_model2" ("id") DEFERRABLE INITIALLY DEFERRED NOT VALID;',
-    #     'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_id_0166400c_fk_tests_model2_id";',
-    # ]
 
 
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
@@ -231,18 +212,11 @@ def test_add_field_with_primary_key__ok():
     assert editor.collected_sql != TIMEOUTS + editor.core_editor.collected_sql
     assert editor.collected_sql == TIMEOUTS + [
         'ALTER TABLE "tests_model" ADD COLUMN "field" varchar(40) NULL;',
-        'CREATE UNIQUE INDEX CONCURRENTLY "tests_model_field_0a53d95f_pk" ON "tests_model" ("field");'
+        'CREATE UNIQUE INDEX CONCURRENTLY "tests_model_field_0a53d95f_pk" ON "tests_model" ("field");',
         'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_0a53d95f_pk" '
         'PRIMARY KEY USING INDEX "tests_model_field_0a53d95f_pk";',
         'CREATE INDEX CONCURRENTLY "tests_model_field_0a53d95f_like" ON "tests_model" ("field" varchar_pattern_ops);',
     ]
-    # assert editor.collected_sql == TIMEOUTS + [
-    #     'ALTER TABLE "tests_model" ADD COLUMN "field" varchar(40) NULL;',
-    #     'CREATE UNIQUE INDEX CONCURRENTLY "tests_model_field_0a53d95f_pk" ON "tests_model" ("field");',
-    #     'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_0a53d95f_pk" '
-    #     'PRIMARY KEY USING INDEX "tests_model_field_0a53d95f_pk";',\
-    #     'CREATE INDEX CONCURRENTLY "tests_model_field_0a53d95f_like" ON "tests_model" ("field" varchar_pattern_ops);'
-    # ]
 
 
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
@@ -254,7 +228,7 @@ def test_add_field_with_unique__ok():
     assert editor.collected_sql != TIMEOUTS + editor.core_editor.collected_sql
     assert editor.collected_sql == TIMEOUTS + [
         'ALTER TABLE "tests_model" ADD COLUMN "field" varchar(40) NULL;',
-        'CREATE UNIQUE INDEX CONCURRENTLY tests_model_field_0a53d95f_uniq ON "tests_model" ("field");'
+        'CREATE UNIQUE INDEX CONCURRENTLY tests_model_field_0a53d95f_uniq ON "tests_model" ("field");',
         'ALTER TABLE "tests_model" ADD CONSTRAINT tests_model_field_0a53d95f_uniq '
         'UNIQUE USING INDEX tests_model_field_0a53d95f_uniq;',
         'CREATE INDEX CONCURRENTLY "tests_model_field_0a53d95f_like" ON "tests_model" ("field" varchar_pattern_ops);',
@@ -439,14 +413,9 @@ def test_alter_field_set_not_null__use_compatible_constraint_for_large_tables__o
     assert editor.collected_sql != TIMEOUTS + editor.core_editor.collected_sql
     assert editor.collected_sql == TIMEOUTS + [
         'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_notnull" '
-        'CHECK ("field" IS NOT NULL) NOT VALID;'
+        'CHECK ("field" IS NOT NULL) NOT VALID;',
         'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_notnull";',
     ]
-    # assert editor.collected_sql == TIMEOUTS + [
-    #     'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_notnull" '
-    #     'CHECK ("field" IS NOT NULL) NOT VALID;',
-    #     'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_notnull";',
-    # ]
 
 
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
@@ -461,14 +430,9 @@ def test_alter_field_set_not_null__use_compatible_constraint_for_all_tables__ok(
     assert editor.collected_sql != TIMEOUTS + editor.core_editor.collected_sql
     assert editor.collected_sql == TIMEOUTS + [
         'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_notnull" '
-        'CHECK ("field" IS NOT NULL) NOT VALID;'
+        'CHECK ("field" IS NOT NULL) NOT VALID;',
         'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_notnull";',
     ]
-    # assert editor.collected_sql == TIMEOUTS + [
-    #     'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_notnull" '
-    #     'CHECK ("field" IS NOT NULL) NOT VALID;',
-    #     'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_notnull";',
-    # ]
 
 
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
@@ -494,7 +458,7 @@ def test_alter_filed_drop_not_null_constraint__ok(mocker):
         editor.alter_field(Model, old_field, new_field)
     assert editor.collected_sql != TIMEOUTS + editor.core_editor.collected_sql
     assert editor.collected_sql == TIMEOUTS + [
-        'ALTER TABLE "tests_model" DROP CONSTRAINT tests_model_field_notnull;'
+        'ALTER TABLE "tests_model" DROP CONSTRAINT tests_model_field_notnull;',
     ]
 
 
@@ -560,14 +524,9 @@ def test_alter_field_add_constraint_check__ok():
     assert editor.collected_sql != TIMEOUTS + editor.core_editor.collected_sql
     assert editor.collected_sql == TIMEOUTS + [
         'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_0a53d95f_check" '
-        'CHECK ("field" >= 0) NOT VALID;'
+        'CHECK ("field" >= 0) NOT VALID;',
         'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_0a53d95f_check";',
     ]
-    # assert editor.collected_sql == TIMEOUTS + [
-    #     'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_0a53d95f_check" '
-    #     'CHECK ("field" >= 0) NOT VALID;',
-    #     'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_0a53d95f_check";',
-    # ]
 
 
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
@@ -606,15 +565,9 @@ def test_alter_filed_add_constraint_foreign_key__ok():
     assert editor.collected_sql == TIMEOUTS + [
         'CREATE INDEX CONCURRENTLY "tests_model_field_id_0166400c" ON "tests_model" ("field_id");',
         'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_id_0166400c_fk_tests_model2_id" '
-        'FOREIGN KEY ("field_id") REFERENCES "tests_model2" ("id") DEFERRABLE INITIALLY DEFERRED NOT VALID;'
+        'FOREIGN KEY ("field_id") REFERENCES "tests_model2" ("id") DEFERRABLE INITIALLY DEFERRED NOT VALID;',
         'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_id_0166400c_fk_tests_model2_id";',
     ]
-    # assert editor.collected_sql == TIMEOUTS + [
-    #     'CREATE INDEX CONCURRENTLY "tests_model_field_id_0166400c" ON "tests_model" ("field_id");',
-    #     'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_id_0166400c_fk_tests_model2_id" '
-    #     'FOREIGN KEY ("field_id") REFERENCES "tests_model2" ("id") DEFERRABLE INITIALLY DEFERRED NOT VALID;',
-    #     'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_id_0166400c_fk_tests_model2_id";',
-    # ]
 
 
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
@@ -654,15 +607,10 @@ def test_alter_field_add_constraint_primary_key__ok(mocker):
         editor.alter_field(Model, old_field, new_field)
     assert editor.collected_sql != TIMEOUTS + editor.core_editor.collected_sql
     assert editor.collected_sql == TIMEOUTS + [
-        'CREATE UNIQUE INDEX CONCURRENTLY "tests_model_field_0a53d95f_pk" ON "tests_model" ("field");'
+        'CREATE UNIQUE INDEX CONCURRENTLY "tests_model_field_0a53d95f_pk" ON "tests_model" ("field");',
         'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_0a53d95f_pk" '
         'PRIMARY KEY USING INDEX "tests_model_field_0a53d95f_pk";',
     ]
-    # assert editor.collected_sql == TIMEOUTS + [
-    #     'CREATE UNIQUE INDEX CONCURRENTLY "tests_model_field_0a53d95f_pk" ON "tests_model" ("field");',
-    #     'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_0a53d95f_pk" '
-    #     'PRIMARY KEY USING INDEX "tests_model_field_0a53d95f_pk";',
-    # ]
 
 
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
@@ -703,16 +651,16 @@ def test_alter_field_add_constraint_unique__ok():
         editor.alter_field(Model, old_field, new_field)
     assert editor.collected_sql != TIMEOUTS + editor.core_editor.collected_sql
     assert editor.collected_sql == TIMEOUTS + [
-        'CREATE UNIQUE INDEX CONCURRENTLY tests_model_field_0a53d95f_uniq ON "tests_model" ("field");'
+        'CREATE UNIQUE INDEX CONCURRENTLY tests_model_field_0a53d95f_uniq ON "tests_model" ("field");',
         'ALTER TABLE "tests_model" ADD CONSTRAINT tests_model_field_0a53d95f_uniq '
         'UNIQUE USING INDEX tests_model_field_0a53d95f_uniq;',
-        'CREATE INDEX CONCURRENTLY "tests_model_field_0a53d95f_like" ON "tests_model" ("field" varchar_pattern_ops);'
+        'CREATE INDEX CONCURRENTLY "tests_model_field_0a53d95f_like" ON "tests_model" ("field" varchar_pattern_ops);',
     ]
     # assert editor.collected_sql == TIMEOUTS + [
     #     'CREATE UNIQUE INDEX CONCURRENTLY "tests_model_field_0a53d95f_uniq" ON "tests_model" ("field");',
     #     'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_0a53d95f_uniq" '
     #     'UNIQUE USING INDEX "tests_model_field_0a53d95f_uniq";',
-    #     'CREATE INDEX CONCURRENTLY "tests_model_field_0a53d95f_like" ON "tests_model" ("field" varchar_pattern_ops);'
+    #     'CREATE INDEX CONCURRENTLY "tests_model_field_0a53d95f_like" ON "tests_model" ("field" varchar_pattern_ops);',
     # ]
 
 
@@ -796,7 +744,7 @@ def test_add_unique_together__ok(mocker):
     assert editor.collected_sql != TIMEOUTS + editor.core_editor.collected_sql
     assert editor.collected_sql == TIMEOUTS + [
         'CREATE UNIQUE INDEX CONCURRENTLY tests_model_field1_field2_51878e08_uniq '
-        'ON "tests_model" ("field1", "field2");'
+        'ON "tests_model" ("field1", "field2");',
         'ALTER TABLE "tests_model" ADD CONSTRAINT tests_model_field1_field2_51878e08_uniq '
         'UNIQUE USING INDEX tests_model_field1_field2_51878e08_uniq;',
     ]
