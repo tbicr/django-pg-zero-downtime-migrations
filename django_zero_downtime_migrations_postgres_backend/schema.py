@@ -310,7 +310,9 @@ class DatabaseSchemaEditor(PostgresDatabaseSchemaEditor):
             self.deferred_sql.append(self._sql_column_not_null_compatible % {
                 "column": self.quote_name(new_field.column),
                 "table": self.quote_name(model._meta.db_table),
-                "name": self.quote_name("{}_{}_notnull".format(model._meta.db_table, new_field.column)),
+                "name": self.quote_name(
+                    self._create_index_name(model._meta.db_table, [new_field.column], suffix="_notnull")
+                )
             })
             return None
         else:

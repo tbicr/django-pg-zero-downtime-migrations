@@ -433,10 +433,10 @@ def test_alter_field_set_not_null__use_compatible_constraint_for_large_tables__o
         new_field.set_attributes_from_name('field')
         editor.alter_field(Model, old_field, new_field)
     assert editor.collected_sql == timeouts(
-        'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_notnull" '
+        'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_0a53d95f_notnull" '
         'CHECK ("field" IS NOT NULL) NOT VALID;',
     ) + [
-        'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_notnull";',
+        'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_0a53d95f_notnull";',
     ]
 
 
@@ -450,10 +450,10 @@ def test_alter_field_set_not_null__use_compatible_constraint_for_all_tables__ok(
         new_field.set_attributes_from_name('field')
         editor.alter_field(Model, old_field, new_field)
     assert editor.collected_sql == timeouts(
-        'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_notnull" '
+        'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_0a53d95f_notnull" '
         'CHECK ("field" IS NOT NULL) NOT VALID;',
     ) + [
-        'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_notnull";',
+        'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_0a53d95f_notnull";',
     ]
 
 
@@ -471,7 +471,9 @@ def test_alter_filed_drop_not_null__ok(mocker):
 
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_alter_filed_drop_not_null_constraint__ok(mocker):
-    mocker.patch.object(connection, 'cursor')().__enter__().fetchone.return_value = ('tests_model_field_notnull',)
+    mocker.patch.object(connection, 'cursor')().__enter__().fetchone.return_value = (
+        'tests_model_field_0a53d95f_notnull',
+    )
     with cmp_schema_editor() as editor:
         old_field = models.CharField(max_length=40, null=False)
         old_field.set_attributes_from_name('field')
@@ -479,7 +481,7 @@ def test_alter_filed_drop_not_null_constraint__ok(mocker):
         new_field.set_attributes_from_name('field')
         editor.alter_field(Model, old_field, new_field)
     assert editor.collected_sql == timeouts(
-        'ALTER TABLE "tests_model" DROP CONSTRAINT tests_model_field_notnull;',
+        'ALTER TABLE "tests_model" DROP CONSTRAINT tests_model_field_0a53d95f_notnull;',
     )
 
 
