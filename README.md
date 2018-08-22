@@ -3,7 +3,66 @@
 # django-pg-zero-downtime-migrations
 Django postgresql backend that apply migrations with respect to database locks.
 
-## Postgres table level locks
+## Installation
+
+    pip install django-pg-zero-downtime-migrations
+
+## Usage
+
+To enable zero downtime migrations for postgres just setup django backend provided by this package:
+
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django_zero_downtime_migrations_postgres_backend',
+            ...
+        }
+    }
+
+> *NOTE:* use this backend only for migrations and use standard django backend for other purpose (see differences with standard django backend for details).
+
+> *NOTE:* this package is in beta, please check your migrations SQL before applying on production and submit issue for any question.
+
+### Differences with standard django backend
+
+This backend provide same result state (instead `NOT NULL` constraint replacement), but different way and with additional guarantees for avoiding stuck tables lock.
+
+This backend doesn't use transactions, because not all fixed SQL can be run in transaction and it allows to avoid deadlocks for complex migration. So when your migration will down in middle of transaction you need fix it manually (instead potential downtime).
+
+### Additional settings
+
+#### ZERO_DOWNTIME_MIGRATIONS_LOCK_TIMEOUT
+
+Apply [`statement_timeout`](https://www.postgresql.org/docs/current/static/runtime-config-client.html#GUC-STATEMENT-TIMEOUT):
+
+    ZERO_DOWNTIME_MIGRATIONS_LOCK_TIMEOUT = '2s'
+
+#### ZERO_DOWNTIME_MIGRATIONS_STATEMENT_TIMEOUT
+
+Apply [`lock_timeout`](https://www.postgresql.org/docs/current/static/runtime-config-client.html#GUC-LOCK-TIMEOUT):
+
+    ZERO_DOWNTIME_MIGRATIONS_STATEMENT_TIMEOUT = '2s'
+
+#### ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE
+
+Enabled option doesn't allow run potential unsafe migration.
+
+    ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE = True
+
+#### ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL
+
+Set policy for avoiding `NOT NULL` constraint creation long lock.
+
+    ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL = 10 ** 7
+
+Allowed values:
+ - `None` - standard django's behaviour (raise for `ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE = True`)
+ - `True` - always replace `NOT NULL` constraint with `CHECK (field IS NOT NULL)` (don't raise for `ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE = True`)
+ - `False` - always use `NOT NULL` constraint (don't raise for `ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE = True`)
+ - `int` value - use `CHECK (field IS NOT NULL)` instead `NOT NULL` constraint if table contains more than `value` rows (approximate rows count used) otherwise use `NOT NULL` constraint (don't raise for `ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE = True`)
+
+## How it works
+
+### Postgres table level locks
 
 Postgres has different locks on table level that can conflict with each other https://www.postgresql.org/docs/current/static/explicit-locking.html#LOCKING-TABLES:
 
@@ -18,14 +77,14 @@ Postgres has different locks on table level that can conflict with each other ht
 | `EXCLUSIVE`              |                | X           | X               | X                        | X       | X                     | X           | X                  |
 | `ACCESS EXCLUSIVE`       | X              | X           | X               | X                        | X       | X                     | X           | X                  |
 
-## Migration and business logic locks
+### Migration and business logic locks
 
 Lets split this lock to migration and business logic operations.
 
 - Migration operations work synchronously in one thread and cover schema migrations (data migrations conflict with business logic operations same as business logic conflict concurrently).
 - Business logic operations work concurrently.
 
-### Migration locks
+#### Migration locks
 
 | lock                     | operations                                                                                                |
 |--------------------------|-----------------------------------------------------------------------------------------------------------|
@@ -41,7 +100,7 @@ Lets split this lock to migration and business logic operations.
 
 \*\*\*\*: Django doesn't have `VALIDATE CONSTRAINT` logic, but we will use it for some cases
 
-### Business logic locks
+#### Business logic locks
 
 | lock            | operations                   | conflict with lock                                              | conflict with operations                    |
 |-----------------|------------------------------|-----------------------------------------------------------------|---------------------------------------------|
@@ -51,7 +110,7 @@ Lets split this lock to migration and business logic operations.
 
 So you can find that all django schema changes for exist table conflicts with business logic, but fortunately they are safe or has safe alternative in general.
 
-## Postgres row level locks
+### Postgres row level locks
 
 As business logic mostly works with table rows it's also important to understand lock conflicts on row level https://www.postgresql.org/docs/current/static/explicit-locking.html#LOCKING-ROWS:
 
@@ -64,7 +123,7 @@ As business logic mostly works with table rows it's also important to understand
 
 Main point there is if you have two transactions that update one row, then second transaction will wait until first will be completed. So for business logic and data migrations better to avoid updates for whole table and use batch updates instead.
 
-## Transactions FIFO waiting
+### Transactions FIFO waiting
 
 ![postgres FIFO](fifo-diagram.png "postgres FIFO")
 
@@ -77,15 +136,15 @@ In this diagram we can extract several metrics:
 3. queries per second + execution time and connections pool - if you too many queries to table and this queries take long time then this queries can just take all available connections to database until wait for release lock, so look like you need different optimizations there: run migrations when load minimal, decrease queries count and execution time, split you data.
 4. too many operations in one transaction - you have issues in all previous points for one operation so if you have many operations in one transaction then you have more chances to get this issues, so you should avoid many operations in one transactions (or event don't run it in transactions at all but you should be more careful when some operation will fail).
 
-## Dealing with timeouts
+### Dealing with timeouts
 
 Postgres has two settings to dealing with `waiting time` and `operation time` presented in diagram: `lock_timeout` and `statement_timeout`.
 
-`SET lock_timeout TO '2s'` allow you to avoid downtime when you have long running query/transaction before run migration.
+`SET lock_timeout TO '2s'` allow you to avoid downtime when you have long running query/transaction before run migration (https://www.postgresql.org/docs/current/static/runtime-config-client.html#GUC-LOCK-TIMEOUT).
 
-`SET statement_timeout TO '2s'` allow you to avoid downtime when you have long running migration query.
+`SET statement_timeout TO '2s'` allow you to avoid downtime when you have long running migration query (https://www.postgresql.org/docs/current/static/runtime-config-client.html#GUC-STATEMENT-TIMEOUT).
 
-## Django migrations hacks
+### Django migrations hacks
 
 Any schema changes can be processed with creation of new table and copy data to it, so just mark unsafe operations that don't have another safe way without downtime as `NO`.
 
@@ -130,15 +189,15 @@ Any schema changes can be processed with creation of new table and copy data to 
 
 \*\*\*\*\*: if you check migration on CI with `python manage.py makemigrations --check` you can't drop column in code without migration creation, so in this case you can be useful *back migration flow*: apply code on all instances and then migrate database
 
-### Dealing with logic that should work before and after migration
+#### Dealing with logic that should work before and after migration
 
-#### New and removing models and columns
+##### New and removing models and columns
 
 Migrations: `CREATE SEQUENCE`, `DROP SEQUENCE`, `CREATE TABLE`, `DROP TABLE`, `ALTER TABLE ADD COLUMN`, `ALTER TABLE DROP COLUMN`.
 
 This migrations are pretty safe, because you'r logic doesn't work with this data before migration
 
-#### Changes for working logic
+##### Changes for working logic
 
 Migrations: `ALTER TABLE RENAME TO`, `ALTER TABLE SET TABLESPACE`, `ALTER TABLE RENAME COLUMN`.
 
@@ -147,13 +206,13 @@ For this migration too hard implement logic that will work correctly for all ins
 1. create new table/column, copy exist data, drop old table/column
 2. downtime
 
-#### Create column with default
+##### Create column with default
 
 Migrations: `ALTER TABLE ADD COLUMN SET DEFAULT`.
 
 Standard django's behaviour for creation column with default is populate all values with default. Django don't use database defaults permanently, so when you add new column with default django will create column with default and drop this default at once, eg. new default will come from django code. In this case you can have a gap when migration applied by not all instances has updated and at this moment new rows in table will be without default and probably you need update nullable values after that. So to avoid this case best way is avoid creation column with default and split column creation (with default for new rows) and data population to two migrations (with deployments).
 
-### Dealing with `NOT NULL` constraint
+#### Dealing with `NOT NULL` constraint
 
 Postgres check that all column items `NOT NULL` when you applying `NOT NULL` constraint, unfortunately you can't defer this check as for `NOT VALID`. But we have some hacks and alternatives there.
 
@@ -161,11 +220,11 @@ Postgres check that all column items `NOT NULL` when you applying `NOT NULL` con
 2. `SET statement_timeout` and try to set `NOT NULL` constraint for small tables.
 3. Use `CHECK (column IS NOT NULL)` constraint instead that support `NOT VALID` option with next `VALIDATE CONSTRAINT`, see article for details https://medium.com/doctolib-engineering/adding-a-not-null-constraint-on-pg-faster-with-minimal-locking-38b2c00c4d1c.
 
-### Dealing with `UNIQUE` constraint
+#### Dealing with `UNIQUE` constraint
 
 Postgres has two approaches for uniqueness: `CREATE UNIQUE INDEX` and `ALTER TABLE ADD CONSTRAINT UNIQUE` - both use unique index inside. Difference that I see that you cannot apply `DROP INDEX CONCURRENTLY` for constraint. However still unclear what difference for `DROP INDEX` and `DROP INDEX CONCURRENTLY` except difference in locks, but as you see before both marked as safe - you don't spend time in `DROP INDEX`, just wait for lock. So as django use constraint for uniqueness we also have a hacks to use constraint safely.
 
-### Dealing with `ALTER TABLE ALTER COLUMN TYPE`
+#### Dealing with `ALTER TABLE ALTER COLUMN TYPE`
 
 Next operations are safe:
 
