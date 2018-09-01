@@ -131,7 +131,9 @@ As business logic mostly works with table rows it's also important to understand
 | `FOR NO KEY UPDATE` |                 | X           | X                   | X            |
 | `FOR UPDATE`        | X               | X           | X                   | X            |
 
-Main point there is if you have two transactions that update one row, then second transaction will wait until first will be completed. So for business logic and data migrations better to avoid updates for whole table and use batch updates instead.
+Main point there is if you have two transactions that update one row, then second transaction will wait until first will be completed. So for business logic and data migrations better to avoid updates for whole table and use batch operations instead.
+
+> *NOTE:* batch operations also can work faster because it helps postgres make more optimal execution plan.
 
 ### Transactions FIFO waiting
 
