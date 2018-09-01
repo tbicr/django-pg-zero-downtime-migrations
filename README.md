@@ -42,6 +42,12 @@ Apply [`lock_timeout`](https://www.postgresql.org/docs/current/static/runtime-co
 
     ZERO_DOWNTIME_MIGRATIONS_STATEMENT_TIMEOUT = '2s'
 
+#### ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT
+
+Set [`statement_timeout`](https://www.postgresql.org/docs/current/static/runtime-config-client.html#GUC-STATEMENT-TIMEOUT) to `0ms` in case when `statement_timeout` enabled globally and you try run long-running operation like index creation or constraint validation:
+
+    ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT = True
+
 #### ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE
 
 Enabled option doesn't allow run potential unsafe migration.
@@ -64,10 +70,12 @@ Allowed values:
 
 If you using https://github.com/mattiaslinnap/django-partial-index package for partial indexes in postgres, then you can easily make this package also safe for migrations:
 
+    from django_zero_downtime_migrations_postgres_backend.schema import PGShareUpdateExclusive
     from partial_index import PartialIndex
 
-    PartialIndex.sql_create_index['postgresql'] = (
-        'CREATE%(unique)s INDEX CONCURRENTLY %(name)s ON %(table)s%(using)s (%(columns)s)%(extra)s WHERE %(where)s'
+    PartialIndex.sql_create_index['postgresql'] = PGShareUpdateExclusive(
+        'CREATE%(unique)s INDEX CONCURRENTLY %(name)s ON %(table)s%(using)s (%(columns)s)%(extra)s WHERE %(where)s',
+        disable_statement_timeout=True
     )
 
 ## How it works

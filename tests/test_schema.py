@@ -12,11 +12,17 @@ from django_zero_downtime_migrations_postgres_backend.schema import (
 )
 
 START_TIMEOUTS = [
-    'SET lock_timeout TO \'0\';',
     'SET statement_timeout TO \'0\';',
+    'SET lock_timeout TO \'0\';',
 ]
 END_TIMEOUTS = [
+    'SET statement_timeout TO \'0ms\';',
     'SET lock_timeout TO \'0ms\';',
+]
+START_FLEXIBLE_STATEMENT_TIMEOUT = [
+    'SET statement_timeout TO \'0ms\';',
+]
+END_FLEXIBLE_STATEMENT_TIMEOUT = [
     'SET statement_timeout TO \'0ms\';',
 ]
 
@@ -25,6 +31,12 @@ def timeouts(statements):
     if isinstance(statements, str):
         statements = [statements]
     return START_TIMEOUTS + statements + END_TIMEOUTS
+
+
+def flexible_statement_timeout(statements):
+    if isinstance(statements, str):
+        statements = [statements]
+    return START_FLEXIBLE_STATEMENT_TIMEOUT + statements + END_FLEXIBLE_STATEMENT_TIMEOUT
 
 
 class Model(models.Model):
@@ -187,6 +199,25 @@ def test_add_field_with_not_null__use_compatible_constraint_for_large_tables__ok
 
 
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
+                   ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=1,
+                   ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
+def test_add_field_with_not_null__use_compatible_constraint_for_large_tables__with_flexible_timeout__ok(mocker):
+    mocker.patch.object(connection, 'cursor')().__enter__().fetchone.return_value = (5,)
+    with cmp_schema_editor() as editor:
+        field = models.CharField(max_length=40, null=False)
+        field.set_attributes_from_name('field')
+        editor.add_field(Model, field)
+    assert editor.collected_sql == timeouts(
+        'ALTER TABLE "tests_model" ADD COLUMN "field" varchar(40);',
+    ) + timeouts(
+        'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_notnull" '
+        'CHECK ("field" IS NOT NULL) NOT VALID;',
+    ) + flexible_statement_timeout(
+        'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_notnull";',
+    )
+
+
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
                    ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=False)
 def test_add_field_with_not_null__use_compatible_constraint_for_all_tables__ok():
     with cmp_schema_editor() as editor:
@@ -201,6 +232,24 @@ def test_add_field_with_not_null__use_compatible_constraint_for_all_tables__ok()
     ) + [
         'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_notnull";',
     ]
+
+
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
+                   ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=False,
+                   ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
+def test_add_field_with_not_null__use_compatible_constraint_for_all_tables__with_flexible_timeout__ok():
+    with cmp_schema_editor() as editor:
+        field = models.CharField(max_length=40, null=False)
+        field.set_attributes_from_name('field')
+        editor.add_field(Model, field)
+    assert editor.collected_sql == timeouts(
+        'ALTER TABLE "tests_model" ADD COLUMN "field" varchar(40);',
+    ) + timeouts(
+        'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_notnull" '
+        'CHECK ("field" IS NOT NULL) NOT VALID;',
+    ) + flexible_statement_timeout(
+        'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_notnull";',
+    )
 
 
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
@@ -221,6 +270,25 @@ def test_add_field_with_foreign_key__ok():
     ]
 
 
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
+                   ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
+def test_add_field_with_foreign_key__with_flexible_timeout__ok():
+    with cmp_schema_editor() as editor:
+        field = models.ForeignKey(Model2, null=True, on_delete=None)
+        field.set_attributes_from_name('field')
+        editor.add_field(Model, field)
+    assert editor.collected_sql == timeouts(
+        'ALTER TABLE "tests_model" ADD COLUMN "field_id" integer NULL;',
+    ) + flexible_statement_timeout(
+        'CREATE INDEX CONCURRENTLY "tests_model_field_id_0166400c" ON "tests_model" ("field_id");',
+    ) + timeouts(
+        'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_id_0166400c_fk_tests_model2_id" '
+        'FOREIGN KEY ("field_id") REFERENCES "tests_model2" ("id") DEFERRABLE INITIALLY DEFERRED NOT VALID;',
+    ) + flexible_statement_timeout(
+        'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_id_0166400c_fk_tests_model2_id";',
+    )
+
+
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_add_field_with_primary_key__ok():
     with cmp_schema_editor() as editor:
@@ -239,6 +307,25 @@ def test_add_field_with_primary_key__ok():
     ]
 
 
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
+                   ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
+def test_add_field_with_primary_key__with_flexible_timeout__ok():
+    with cmp_schema_editor() as editor:
+        field = models.CharField(max_length=40, null=True, primary_key=True)
+        field.set_attributes_from_name('field')
+        editor.add_field(Model, field)
+    assert editor.collected_sql == timeouts(
+        'ALTER TABLE "tests_model" ADD COLUMN "field" varchar(40) NULL;',
+    ) + flexible_statement_timeout(
+        'CREATE UNIQUE INDEX CONCURRENTLY "tests_model_field_0a53d95f_pk" ON "tests_model" ("field");',
+    ) + timeouts(
+        'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_0a53d95f_pk" '
+        'PRIMARY KEY USING INDEX "tests_model_field_0a53d95f_pk";',
+    ) + flexible_statement_timeout(
+        'CREATE INDEX CONCURRENTLY "tests_model_field_0a53d95f_like" ON "tests_model" ("field" varchar_pattern_ops);',
+    )
+
+
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_add_field_with_unique__ok():
     with cmp_schema_editor() as editor:
@@ -255,6 +342,32 @@ def test_add_field_with_unique__ok():
     ) + [
         'CREATE INDEX CONCURRENTLY "tests_model_field_0a53d95f_like" ON "tests_model" ("field" varchar_pattern_ops);',
     ]
+    # assert editor.collected_sql == TIMEOUTS + [
+    #     'ALTER TABLE "tests_model" ADD COLUMN "field" varchar(40) NULL;',
+    #     'CREATE UNIQUE INDEX CONCURRENTLY "tests_model_field_0a53d95f_uniq" ON "tests_model" ("field");',
+    #     'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_0a53d95f_uniq" '
+    #     'UNIQUE USING INDEX "tests_model_field_0a53d95f_uniq";',
+    #     'CREATE INDEX CONCURRENTLY "tests_model_field_0a53d95f_like" ON "tests_model" ("field" varchar_pattern_ops);',
+    # ]
+
+
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
+                   ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
+def test_add_field_with_unique__with_flexible_timeout__ok():
+    with cmp_schema_editor() as editor:
+        field = models.CharField(max_length=40, null=True, unique=True)
+        field.set_attributes_from_name('field')
+        editor.add_field(Model, field)
+    assert editor.collected_sql == timeouts(
+        'ALTER TABLE "tests_model" ADD COLUMN "field" varchar(40) NULL;',
+    ) + flexible_statement_timeout(
+        'CREATE UNIQUE INDEX CONCURRENTLY tests_model_field_0a53d95f_uniq ON "tests_model" ("field");',
+    ) + timeouts(
+        'ALTER TABLE "tests_model" ADD CONSTRAINT tests_model_field_0a53d95f_uniq '
+        'UNIQUE USING INDEX tests_model_field_0a53d95f_uniq;',
+    ) + flexible_statement_timeout(
+        'CREATE INDEX CONCURRENTLY "tests_model_field_0a53d95f_like" ON "tests_model" ("field" varchar_pattern_ops);',
+    )
     # assert editor.collected_sql == TIMEOUTS + [
     #     'ALTER TABLE "tests_model" ADD COLUMN "field" varchar(40) NULL;',
     #     'CREATE UNIQUE INDEX CONCURRENTLY "tests_model_field_0a53d95f_uniq" ON "tests_model" ("field");',
@@ -441,6 +554,25 @@ def test_alter_field_set_not_null__use_compatible_constraint_for_large_tables__o
 
 
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
+                   ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=1,
+                   ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
+def test_alter_field_set_not_null__use_compatible_constraint_for_large_tables__with_flexible_timeout__ok(mocker):
+    mocker.patch.object(connection, 'cursor')().__enter__().fetchone.return_value = (5,)
+    with cmp_schema_editor() as editor:
+        old_field = models.CharField(max_length=40, null=True)
+        old_field.set_attributes_from_name('field')
+        new_field = models.CharField(max_length=40, null=False)
+        new_field.set_attributes_from_name('field')
+        editor.alter_field(Model, old_field, new_field)
+    assert editor.collected_sql == timeouts(
+        'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_0a53d95f_notnull" '
+        'CHECK ("field" IS NOT NULL) NOT VALID;',
+    ) + flexible_statement_timeout(
+        'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_0a53d95f_notnull";',
+    )
+
+
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
                    ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=False)
 def test_alter_field_set_not_null__use_compatible_constraint_for_all_tables__ok():
     with cmp_schema_editor() as editor:
@@ -455,6 +587,24 @@ def test_alter_field_set_not_null__use_compatible_constraint_for_all_tables__ok(
     ) + [
         'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_0a53d95f_notnull";',
     ]
+
+
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
+                   ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=False,
+                   ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
+def test_alter_field_set_not_null__use_compatible_constraint_for_all_tables__with_flexible_timeout__ok():
+    with cmp_schema_editor() as editor:
+        old_field = models.CharField(max_length=40, null=True)
+        old_field.set_attributes_from_name('field')
+        new_field = models.CharField(max_length=40, null=False)
+        new_field.set_attributes_from_name('field')
+        editor.alter_field(Model, old_field, new_field)
+    assert editor.collected_sql == timeouts(
+        'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_0a53d95f_notnull" '
+        'CHECK ("field" IS NOT NULL) NOT VALID;',
+    ) + flexible_statement_timeout(
+        'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_0a53d95f_notnull";',
+    )
 
 
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
@@ -554,6 +704,23 @@ def test_alter_field_add_constraint_check__ok():
     ]
 
 
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
+                   ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
+def test_alter_field_add_constraint_check__with_flexible_timeout__ok():
+    with cmp_schema_editor() as editor:
+        old_field = models.IntegerField()
+        old_field.set_attributes_from_name('field')
+        new_field = models.PositiveIntegerField()
+        new_field.set_attributes_from_name('field')
+        editor.alter_field(Model, old_field, new_field)
+    assert editor.collected_sql == timeouts(
+        'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_0a53d95f_check" '
+        'CHECK ("field" >= 0) NOT VALID;',
+    ) + flexible_statement_timeout(
+        'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_0a53d95f_check";',
+    )
+
+
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_alter_field_drop_constraint_check__ok(mocker):
     mocker.patch.object(connection, 'cursor')
@@ -596,6 +763,25 @@ def test_alter_filed_add_constraint_foreign_key__ok():
     ]
 
 
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
+                   ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
+def test_alter_filed_add_constraint_foreign_key__with_flexible_timeout__ok():
+    with cmp_schema_editor() as editor:
+        old_field = models.IntegerField()
+        old_field.set_attributes_from_name('field_id')
+        new_field = models.ForeignKey(Model2, on_delete=None)
+        new_field.set_attributes_from_name('field')
+        editor.alter_field(Model, old_field, new_field)
+    assert editor.collected_sql == flexible_statement_timeout(
+        'CREATE INDEX CONCURRENTLY "tests_model_field_id_0166400c" ON "tests_model" ("field_id");',
+    ) + timeouts(
+        'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_id_0166400c_fk_tests_model2_id" '
+        'FOREIGN KEY ("field_id") REFERENCES "tests_model2" ("id") DEFERRABLE INITIALLY DEFERRED NOT VALID;',
+    ) + flexible_statement_timeout(
+        'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_id_0166400c_fk_tests_model2_id";',
+    )
+
+
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_alter_field_drop_constraint_foreign_key__ok(mocker):
     mocker.patch.object(connection, 'cursor')
@@ -634,6 +820,26 @@ def test_alter_field_add_constraint_primary_key__ok(mocker):
     assert editor.collected_sql == [
         'CREATE UNIQUE INDEX CONCURRENTLY "tests_model_field_0a53d95f_pk" ON "tests_model" ("field");',
     ] + timeouts(
+        'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_0a53d95f_pk" '
+        'PRIMARY KEY USING INDEX "tests_model_field_0a53d95f_pk";',
+    )
+
+
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
+                   ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
+def test_alter_field_add_constraint_primary_key__with_flexible_timeout__ok(mocker):
+    mocker.patch.object(connection, 'cursor')
+    with cmp_schema_editor() as editor:
+        old_field = models.CharField(max_length=40, unique=True)
+        old_field.set_attributes_from_name('field')
+        old_field.model = Model
+        new_field = models.CharField(max_length=40, primary_key=True)
+        new_field.set_attributes_from_name('field')
+        new_field.model = Model
+        editor.alter_field(Model, old_field, new_field)
+    assert editor.collected_sql == flexible_statement_timeout(
+        'CREATE UNIQUE INDEX CONCURRENTLY "tests_model_field_0a53d95f_pk" ON "tests_model" ("field");',
+    ) + timeouts(
         'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_0a53d95f_pk" '
         'PRIMARY KEY USING INDEX "tests_model_field_0a53d95f_pk";',
     )
@@ -691,6 +897,31 @@ def test_alter_field_add_constraint_unique__ok():
     # ]
 
 
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
+                   ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
+def test_alter_field_add_constraint_unique__with_flexible_timeout__ok():
+    with cmp_schema_editor() as editor:
+        old_field = models.CharField(max_length=40)
+        old_field.set_attributes_from_name('field')
+        new_field = models.CharField(max_length=40, unique=True)
+        new_field.set_attributes_from_name('field')
+        editor.alter_field(Model, old_field, new_field)
+    assert editor.collected_sql == flexible_statement_timeout(
+        'CREATE UNIQUE INDEX CONCURRENTLY tests_model_field_0a53d95f_uniq ON "tests_model" ("field");',
+    ) + timeouts(
+        'ALTER TABLE "tests_model" ADD CONSTRAINT tests_model_field_0a53d95f_uniq '
+        'UNIQUE USING INDEX tests_model_field_0a53d95f_uniq;',
+    ) + flexible_statement_timeout(
+        'CREATE INDEX CONCURRENTLY "tests_model_field_0a53d95f_like" ON "tests_model" ("field" varchar_pattern_ops);',
+    )
+    # assert editor.collected_sql == TIMEOUTS + [
+    #     'CREATE UNIQUE INDEX CONCURRENTLY "tests_model_field_0a53d95f_uniq" ON "tests_model" ("field");',
+    #     'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_0a53d95f_uniq" '
+    #     'UNIQUE USING INDEX "tests_model_field_0a53d95f_uniq";',
+    #     'CREATE INDEX CONCURRENTLY "tests_model_field_0a53d95f_like" ON "tests_model" ("field" varchar_pattern_ops);',
+    # ]
+
+
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_alter_field_drop_constraint_unique__ok(mocker):
     mocker.patch.object(connection, 'cursor')
@@ -731,6 +962,22 @@ def test_add_index__ok():
         'CREATE INDEX CONCURRENTLY "tests_model_field_0a53d95f" ON "tests_model" ("field");',
         'CREATE INDEX CONCURRENTLY "tests_model_field_0a53d95f_like" ON "tests_model" ("field" varchar_pattern_ops);',
     ]
+
+
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
+                   ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
+def test_add_index__with_flexible_timeout__ok():
+    with cmp_schema_editor() as editor:
+        old_field = models.CharField(max_length=40)
+        old_field.set_attributes_from_name('field')
+        new_field = models.CharField(max_length=40, db_index=True)
+        new_field.set_attributes_from_name('field')
+        editor.alter_field(Model, old_field, new_field)
+    assert editor.collected_sql == flexible_statement_timeout(
+        'CREATE INDEX CONCURRENTLY "tests_model_field_0a53d95f" ON "tests_model" ("field");',
+    ) + flexible_statement_timeout(
+        'CREATE INDEX CONCURRENTLY "tests_model_field_0a53d95f_like" ON "tests_model" ("field" varchar_pattern_ops);',
+    )
 
 
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
@@ -781,6 +1028,27 @@ def test_add_unique_together__ok(mocker):
     # ]
 
 
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
+                   ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
+def test_add_unique_together__with_flexible_timeout__ok(mocker):
+    mocker.patch.object(connection, 'cursor')
+    with cmp_schema_editor() as editor:
+        editor.alter_unique_together(Model, [], [['field1', 'field2']])
+    assert editor.collected_sql == flexible_statement_timeout(
+        'CREATE UNIQUE INDEX CONCURRENTLY tests_model_field1_field2_51878e08_uniq '
+        'ON "tests_model" ("field1", "field2");',
+    ) + timeouts(
+        'ALTER TABLE "tests_model" ADD CONSTRAINT tests_model_field1_field2_51878e08_uniq '
+        'UNIQUE USING INDEX tests_model_field1_field2_51878e08_uniq;',
+    )
+    # assert editor.collected_sql == TIMEOUTS + [
+    #     'CREATE UNIQUE INDEX CONCURRENTLY "tests_model_field1_field2_51878e08_uniq" '
+    #     'ON "tests_model" ("field1", "field2");',
+    #     'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field1_field2_51878e08_uniq" '
+    #     'UNIQUE USING INDEX "tests_model_field1_field2_51878e08_uniq";',
+    # ]
+
+
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_remove_unique_together__ok(mocker):
     mocker.patch.object(connection, 'cursor')
@@ -810,6 +1078,18 @@ def test_add_index_together__ok(mocker):
         'CREATE INDEX CONCURRENTLY "tests_model_field1_field2_51878e08_idx" '
         'ON "tests_model" ("field1", "field2");',
     ]
+
+
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
+                   ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
+def test_add_index_together__with_flexible_timeout__ok(mocker):
+    mocker.patch.object(connection, 'cursor')
+    with cmp_schema_editor() as editor:
+        editor.alter_index_together(Model, [], [['field1', 'field2']])
+    assert editor.collected_sql == flexible_statement_timeout(
+        'CREATE INDEX CONCURRENTLY "tests_model_field1_field2_51878e08_idx" '
+        'ON "tests_model" ("field1", "field2");',
+    )
 
 
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)

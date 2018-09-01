@@ -43,9 +43,12 @@ class MultiStatementSQL(list):
 
 class PGLock:
 
-    def __init__(self, sql, use_timeouts=False):
+    def __init__(self, sql, use_timeouts=False, disable_statement_timeout=False):
         self.sql = sql
+        if use_timeouts and disable_statement_timeout:
+            raise ValueError("Can't apply use_timeouts and disable_statement_timeout simultaneously.")
         self.use_timeouts = use_timeouts
+        self.disable_statement_timeout = disable_statement_timeout
 
     def __str__(self):
         return self.sql
@@ -54,16 +57,16 @@ class PGLock:
         return str(self)
 
     def __mod__(self, other):
-        return self.__class__(self.sql % other, self.use_timeouts)
+        return self.__class__(self.sql % other, self.use_timeouts, self.disable_statement_timeout)
 
     def format(self, *args, **kwargs):
-        return self.__class__(self.sql.format(*args, **kwargs), self.use_timeouts)
+        return self.__class__(self.sql.format(*args, **kwargs), self.use_timeouts, self.disable_statement_timeout)
 
 
 class PGAccessExclusive(PGLock):
 
-    def __init__(self, sql, use_timeouts=True):
-        super().__init__(sql, use_timeouts)
+    def __init__(self, sql, use_timeouts=True, disable_statement_timeout=False):
+        super().__init__(sql, use_timeouts, disable_statement_timeout)
 
 
 class PGShareUpdateExclusive(PGLock):
@@ -71,6 +74,7 @@ class PGShareUpdateExclusive(PGLock):
 
 
 class DatabaseSchemaEditor(PostgresDatabaseSchemaEditor):
+    ZERO_TIMEOUT = '0ms'
 
     sql_get_lock_timeout = "SELECT setting || unit FROM pg_settings WHERE name = 'lock_timeout'"
     sql_get_statement_timeout = "SELECT setting || unit FROM pg_settings WHERE name = 'statement_timeout'"
@@ -92,12 +96,14 @@ class DatabaseSchemaEditor(PostgresDatabaseSchemaEditor):
 
     sql_create_check = MultiStatementSQL(
         PGAccessExclusive("ALTER TABLE %(table)s ADD CONSTRAINT %(name)s CHECK (%(check)s) NOT VALID"),
-        PGShareUpdateExclusive("ALTER TABLE %(table)s VALIDATE CONSTRAINT %(name)s"),
+        PGShareUpdateExclusive("ALTER TABLE %(table)s VALIDATE CONSTRAINT %(name)s",
+                               disable_statement_timeout=True),
     )
     sql_delete_check = PGAccessExclusive(PostgresDatabaseSchemaEditor.sql_delete_check)
 
     sql_create_unique = MultiStatementSQL(
-        PGShareUpdateExclusive("CREATE UNIQUE INDEX CONCURRENTLY %(name)s ON %(table)s (%(columns)s)"),
+        PGShareUpdateExclusive("CREATE UNIQUE INDEX CONCURRENTLY %(name)s ON %(table)s (%(columns)s)",
+                               disable_statement_timeout=True),
         PGAccessExclusive("ALTER TABLE %(table)s ADD CONSTRAINT %(name)s UNIQUE USING INDEX %(name)s"),
     )
     sql_delete_unique = PGAccessExclusive(PostgresDatabaseSchemaEditor.sql_delete_unique)
@@ -105,24 +111,29 @@ class DatabaseSchemaEditor(PostgresDatabaseSchemaEditor):
     sql_create_fk = MultiStatementSQL(
         PGAccessExclusive("ALTER TABLE %(table)s ADD CONSTRAINT %(name)s FOREIGN KEY (%(column)s) "
                           "REFERENCES %(to_table)s (%(to_column)s)%(deferrable)s NOT VALID"),
-        PGShareUpdateExclusive("ALTER TABLE %(table)s VALIDATE CONSTRAINT %(name)s"),
+        PGShareUpdateExclusive("ALTER TABLE %(table)s VALIDATE CONSTRAINT %(name)s",
+                               disable_statement_timeout=True),
     )
     sql_delete_fk = PGAccessExclusive(PostgresDatabaseSchemaEditor.sql_delete_fk)
 
     sql_create_pk = MultiStatementSQL(
-        PGShareUpdateExclusive("CREATE UNIQUE INDEX CONCURRENTLY %(name)s ON %(table)s (%(columns)s)"),
+        PGShareUpdateExclusive("CREATE UNIQUE INDEX CONCURRENTLY %(name)s ON %(table)s (%(columns)s)",
+                               disable_statement_timeout=True),
         PGAccessExclusive("ALTER TABLE %(table)s ADD CONSTRAINT %(name)s PRIMARY KEY USING INDEX %(name)s"),
     )
     sql_delete_pk = PGAccessExclusive(PostgresDatabaseSchemaEditor.sql_delete_pk)
 
     sql_create_index = PGShareUpdateExclusive(
-        "CREATE INDEX CONCURRENTLY %(name)s ON %(table)s%(using)s (%(columns)s)%(extra)s"
+        "CREATE INDEX CONCURRENTLY %(name)s ON %(table)s%(using)s (%(columns)s)%(extra)s",
+        disable_statement_timeout=True
     )
     sql_create_varchar_index = PGShareUpdateExclusive(
-        "CREATE INDEX CONCURRENTLY %(name)s ON %(table)s (%(columns)s varchar_pattern_ops)%(extra)s"
+        "CREATE INDEX CONCURRENTLY %(name)s ON %(table)s (%(columns)s varchar_pattern_ops)%(extra)s",
+        disable_statement_timeout=True
     )
     sql_create_text_index = PGShareUpdateExclusive(
-        "CREATE INDEX CONCURRENTLY %(name)s ON %(table)s (%(columns)s text_pattern_ops)%(extra)s"
+        "CREATE INDEX CONCURRENTLY %(name)s ON %(table)s (%(columns)s text_pattern_ops)%(extra)s",
+        disable_statement_timeout=True
     )
     sql_delete_index = PGShareUpdateExclusive("DROP INDEX CONCURRENTLY IF EXISTS %(name)s")
 
@@ -133,7 +144,8 @@ class DatabaseSchemaEditor(PostgresDatabaseSchemaEditor):
     )
     _sql_column_not_null_compatible = MultiStatementSQL(
         PGAccessExclusive("ALTER TABLE %(table)s ADD CONSTRAINT %(name)s CHECK (%(column)s IS NOT NULL) NOT VALID"),
-        PGShareUpdateExclusive("ALTER TABLE %(table)s VALIDATE CONSTRAINT %(name)s"),
+        PGShareUpdateExclusive("ALTER TABLE %(table)s VALIDATE CONSTRAINT %(name)s",
+                               disable_statement_timeout=True),
     )
 
     _varchar_type_regexp = re.compile('^varchar\((?P<max_length>\d+)\)$')
@@ -142,6 +154,8 @@ class DatabaseSchemaEditor(PostgresDatabaseSchemaEditor):
     def __init__(self, connection, collect_sql=False, atomic=True):
         self.LOCK_TIMEOUT = getattr(settings, "ZERO_DOWNTIME_MIGRATIONS_LOCK_TIMEOUT", 0)
         self.STATEMENT_TIMEOUT = getattr(settings, "ZERO_DOWNTIME_MIGRATIONS_STATEMENT_TIMEOUT", 0)
+        self.FLEXIBLE_STATEMENT_TIMEOUT = getattr(
+            settings, "ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT", False)
         self.USE_NOT_NULL = getattr(settings, "ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL", None)
         self.RAISE_FOR_UNSAFE = getattr(settings, "ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE", False)
         super().__init__(connection, collect_sql=collect_sql, atomic=False)
@@ -157,35 +171,45 @@ class DatabaseSchemaEditor(PostgresDatabaseSchemaEditor):
         for statement in statements:
             if isinstance(statement, PGLock):
                 use_timeouts = statement.use_timeouts
+                disable_statement_timeout = statement.disable_statement_timeout
                 statement = statement.sql
             elif isinstance(statement, Statement) and isinstance(statement.template, PGLock):
                 use_timeouts = statement.template.use_timeouts
+                disable_statement_timeout = statement.template.disable_statement_timeout
                 statement = Statement(statement.template.sql, **statement.parts)
             else:
                 use_timeouts = False
+                disable_statement_timeout = False
 
             if use_timeouts:
-                with self._respect_operation_timeout():
+                with self._set_operation_timeout(self.STATEMENT_TIMEOUT, self.LOCK_TIMEOUT):
+                    super().execute(statement, params)
+            elif disable_statement_timeout and self.FLEXIBLE_STATEMENT_TIMEOUT:
+                with self._set_operation_timeout(self.ZERO_TIMEOUT):
                     super().execute(statement, params)
             else:
                 super().execute(statement, params)
 
     @contextmanager
-    def _respect_operation_timeout(self):
+    def _set_operation_timeout(self, statement_timeout=None, lock_timeout=None):
         if self.collect_sql:
-            previous_lock_timeout = '0ms'
-            previous_statement_timeout = '0ms'
+            previous_statement_timeout = self.ZERO_TIMEOUT
+            previous_lock_timeout = self.ZERO_TIMEOUT
         else:
             with self.connection.cursor() as cursor:
-                cursor.execute(self.sql_get_lock_timeout)
-                previous_lock_timeout, = cursor.fetchone()
                 cursor.execute(self.sql_get_statement_timeout)
                 previous_statement_timeout, = cursor.fetchone()
-        self.execute(self.sql_set_lock_timeout % {"lock_timeout": self.LOCK_TIMEOUT})
-        self.execute(self.sql_set_statement_timeout % {"statement_timeout": self.STATEMENT_TIMEOUT})
+                cursor.execute(self.sql_get_lock_timeout)
+                previous_lock_timeout, = cursor.fetchone()
+        if statement_timeout is not None:
+            self.execute(self.sql_set_statement_timeout % {"statement_timeout": statement_timeout})
+        if lock_timeout is not None:
+            self.execute(self.sql_set_lock_timeout % {"lock_timeout": lock_timeout})
         yield
-        self.execute(self.sql_set_lock_timeout % {"lock_timeout": previous_lock_timeout})
-        self.execute(self.sql_set_statement_timeout % {"statement_timeout": previous_statement_timeout})
+        if statement_timeout is not None:
+            self.execute(self.sql_set_statement_timeout % {"statement_timeout": previous_statement_timeout})
+        if lock_timeout is not None:
+            self.execute(self.sql_set_lock_timeout % {"lock_timeout": previous_lock_timeout})
 
     def alter_db_table(self, model, old_db_table, new_db_table):
         if self.RAISE_FOR_UNSAFE:
