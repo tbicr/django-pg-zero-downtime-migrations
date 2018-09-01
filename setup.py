@@ -2,7 +2,7 @@ from setuptools import find_packages, setup
 
 setup(
     name='django-pg-zero-downtime-migrations',
-    version='0.1.1',
+    version='0.2',
     author='Paveł Tyślacki',
     author_email='pavel.tyslacki@gmail.com',
     license='MIT',
@@ -21,6 +21,7 @@ setup(
         'Programming Language :: Python :: 3.7',
         'Framework :: Django',
         'Framework :: Django :: 2.0',
+        'Framework :: Django :: 2.1',
     ],
     keywords='django postgres postgresql migrations',
     packages=find_packages(exclude=['tests*']),
