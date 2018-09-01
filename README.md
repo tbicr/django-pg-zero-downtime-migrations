@@ -60,6 +60,16 @@ Allowed values:
  - `False` - always use `NOT NULL` constraint (don't raise for `ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE = True`)
  - `int` value - use `CHECK (field IS NOT NULL)` instead `NOT NULL` constraint if table contains more than `value` rows (approximate rows count used) otherwise use `NOT NULL` constraint (don't raise for `ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE = True`)
 
+### Dealing with partial indexes
+
+If you using https://github.com/mattiaslinnap/django-partial-index package for partial indexes in postgres, then you can easily make this package also safe for migrations:
+
+    from partial_index import PartialIndex
+
+    PartialIndex.sql_create_index['postgresql'] = (
+        'CREATE%(unique)s INDEX CONCURRENTLY %(name)s ON %(table)s%(using)s (%(columns)s)%(extra)s WHERE %(where)s'
+    )
+
 ## How it works
 
 ### Postgres table level locks
