@@ -8,7 +8,7 @@ setup(
     license='MIT',
     url='https://github.com/tbicr/django-pg-zero-downtime-migrations',
     description='Django postgresql backend that apply migrations with respect to database locks',
-    long_description=open('README.md').read(),
+    long_description=open('README.md').read() + '\n\n' + open('CHANGES.md').read(),
     long_description_content_type='text/markdown',
     classifiers=[
         'Development Status :: 4 - Beta',
