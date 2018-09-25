@@ -18,7 +18,7 @@ To enable zero downtime migrations for postgres just setup django backend provid
         }
     }
 
-> *NOTE:* use this backend only for migrations and use standard django backend for other purpose (see differences with standard django backend for details).
+> *NOTE:* this backend brings zero downtime improvements only for migrations (schema and `RunSQL` operations, but not for `RunPython` operation), for other purpose it works the same as standard django backend.
 
 > *NOTE:* this package is in beta, please check your migrations SQL before applying on production and submit issue for any question.
 
@@ -26,7 +26,7 @@ To enable zero downtime migrations for postgres just setup django backend provid
 
 This backend provide same result state (instead `NOT NULL` constraint replacement), but different way and with additional guarantees for avoiding stuck tables lock.
 
-This backend doesn't use transactions, because not all fixed SQL can be run in transaction and it allows to avoid deadlocks for complex migration. So when your migration will down in middle of transaction you need fix it manually (instead potential downtime).
+This backend doesn't use transactions for migrations (except `RunPython` operation), because not all fixed SQL can be run in transaction and it allows to avoid deadlocks for complex migration. So when your migration will down in middle of transaction you need fix it manually (instead potential downtime).
 
 ### Additional settings
 
