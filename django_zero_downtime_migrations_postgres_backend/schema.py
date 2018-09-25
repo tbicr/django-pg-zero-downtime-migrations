@@ -148,8 +148,8 @@ class DatabaseSchemaEditor(PostgresDatabaseSchemaEditor):
                                disable_statement_timeout=True),
     )
 
-    _varchar_type_regexp = re.compile('^varchar\((?P<max_length>\d+)\)$')
-    _numeric_type_regexp = re.compile('^numeric\((?P<precision>\d+), *(?P<scale>\d+)\)$')
+    _varchar_type_regexp = re.compile(r'^varchar\((?P<max_length>\d+)\)$')
+    _numeric_type_regexp = re.compile(r'^numeric\((?P<precision>\d+), *(?P<scale>\d+)\)$')
 
     def __init__(self, connection, collect_sql=False, atomic=True):
         self.LOCK_TIMEOUT = getattr(settings, "ZERO_DOWNTIME_MIGRATIONS_LOCK_TIMEOUT", 0)
