@@ -9,10 +9,6 @@ from django.db.backends.postgresql.schema import (
 )
 
 
-class TimeoutException(Exception):
-    pass
-
-
 class UnsafeOperationWarning(Warning):
     pass
 
