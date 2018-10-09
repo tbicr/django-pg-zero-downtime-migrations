@@ -6,6 +6,8 @@ Django postgresql backend that apply migrations with respect to database locks.
 ## Installation
 
     pip install django-pg-zero-downtime-migrations
+    
+> *NOTE:* this package works with django 2.0+.
 
 ## Usage
 
