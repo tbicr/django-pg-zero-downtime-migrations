@@ -6,6 +6,8 @@ Django postgresql backend that apply migrations with respect to database locks.
 ## Installation
 
     pip install django-pg-zero-downtime-migrations
+    
+> *NOTE:* this package works with django 2.0+.
 
 ## Usage
 
@@ -24,9 +26,24 @@ To enable zero downtime migrations for postgres just setup django backend provid
 
 ### Differences with standard django backend
 
-This backend provide same result state (instead `NOT NULL` constraint replacement), but different way and with additional guarantees for avoiding stuck tables lock.
+This backend provides same result state (instead `NOT NULL` constraint replacement), but different way and with additional guarantees for avoiding stuck tables lock.
 
 This backend doesn't use transactions for migrations (except `RunPython` operation), because not all fixed SQL can be run in transaction and it allows to avoid deadlocks for complex migration. So when your migration will down in middle of transaction you need fix it manually (instead potential downtime).
+
+### Deployment flow
+
+There ara main rules for zero downtime deployment:
+1. We have one database;
+1. We have several instances with application - application always should be available, even you restart one of instances;
+1. We have balancer before instances;
+1. Our application works fine before, on and after migration - old application works fine with old and new database schema version;
+1. Our application works fine before, on and after instance updating - old and new application versions work fine with new database schema version.
+
+Flow:
+1. apply migrations
+1. disconnect instance form balancer, restart it and back to balancer - repeat this operation one by one for all instances
+
+If our deployment don't satisfy zero downtime deployment rules, then we split it to smaller deployments.
 
 ### Additional settings
 
@@ -64,7 +81,7 @@ Allowed values:
  - `None` - standard django's behaviour (raise for `ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE = True`)
  - `True` - always replace `NOT NULL` constraint with `CHECK (field IS NOT NULL)` (don't raise for `ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE = True`)
  - `False` - always use `NOT NULL` constraint (don't raise for `ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE = True`)
- - `int` value - use `CHECK (field IS NOT NULL)` instead `NOT NULL` constraint if table contains more than `value` rows (approximate rows count used) otherwise use `NOT NULL` constraint (don't raise for `ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE = True`)
+ - `int` value - use `CHECK (field IS NOT NULL)` instead `NOT NULL` constraint if table has more than `value` rows (approximate rows count used) otherwise use `NOT NULL` constraint (don't raise for `ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE = True`)
 
 ### Dealing with partial indexes
 
@@ -112,7 +129,7 @@ Lets split this lock to migration and business logic operations.
 
 \*: `CREATE SEQUENCE`, `DROP SEQUENCE`, `CREATE TABLE`, `DROP TABLE` shouldn't have conflicts, because your logic shouldn't operate with it
 
-\*\*: Not all `ALTER TABLE` operations require `ACCESS EXCLUSIVE` lock, but all current django's migrations require it https://github.com/django/django/blob/master/django/db/backends/base/schema.py, https://github.com/django/django/blob/master/django/db/backends/postgresql/schema.py and https://www.postgresql.org/docs/current/static/sql-altertable.html
+\*\*: Not all `ALTER TABLE` operations take `ACCESS EXCLUSIVE` lock, but all current django's migrations take it https://github.com/django/django/blob/master/django/db/backends/base/schema.py, https://github.com/django/django/blob/master/django/db/backends/postgresql/schema.py and https://www.postgresql.org/docs/current/static/sql-altertable.html
 
 \*\*\*: Django currently doesn't support `CONCURRENTLY` operations
 
@@ -147,12 +164,12 @@ Main point there is if you have two transactions that update one row, then secon
 
 ![postgres FIFO](fifo-diagram.png "postgres FIFO")
 
-Fond same diagram in interesting article http://pankrat.github.io/2015/django-migrations-without-downtimes/.
+Found same diagram in interesting article http://pankrat.github.io/2015/django-migrations-without-downtimes/.
 
 In this diagram we can extract several metrics:
 
-1. operation time - time what you spend for schema change, so there are issue for long running operation on many rows tables like `CREATE INDEX` or `ALTER TABLE ADD COLUMN SET DEFAULT`, so you need use more save equivalents instead.
-2. waiting time - your migration will wait until all transactions will be completed, so there are issue for long running operations/transactions like analytic, so you need avoid it or disable on migration time.
+1. operation time - time what you spend for schema change, so there is issue for long running operation on many rows tables like `CREATE INDEX` or `ALTER TABLE ADD COLUMN SET DEFAULT`, so you need use more save equivalents instead.
+2. waiting time - your migration will wait until all transactions will be completed, so there is issue for long running operations/transactions like analytic, so you need avoid it or disable on migration time.
 3. queries per second + execution time and connections pool - if you too many queries to table and this queries take long time then this queries can just take all available connections to database until wait for release lock, so look like you need different optimizations there: run migrations when load minimal, decrease queries count and execution time, split you data.
 4. too many operations in one transaction - you have issues in all previous points for one operation so if you have many operations in one transaction then you have more chances to get this issues, so you should avoid many operations in one transactions (or event don't run it in transactions at all but you should be more careful when some operation will fail).
 
@@ -163,6 +180,18 @@ Postgres has two settings to dealing with `waiting time` and `operation time` pr
 `SET lock_timeout TO '2s'` allow you to avoid downtime when you have long running query/transaction before run migration (https://www.postgresql.org/docs/current/static/runtime-config-client.html#GUC-LOCK-TIMEOUT).
 
 `SET statement_timeout TO '2s'` allow you to avoid downtime when you have long running migration query (https://www.postgresql.org/docs/current/static/runtime-config-client.html#GUC-STATEMENT-TIMEOUT).
+
+### Deadlocks
+
+There no downtime issues for deadlocks, but too many operations in one transaction will take most conflictable lock and release it only after transaction commit or rollback. So it's a good idea to avoid `ACCESS EXCLUSIVE` lock operations and long time operations in one transaction. Deadlocks also can make you migration stuck on production deployment when different tables will be locked, for example, for FOREIGN KEY that take `ACCESS EXCLUSIVE` lock for two tables.
+
+### Rows and values storing
+
+Postgres store values of different types different ways https://www.postgresql.org/docs/current/static/storage-toast.html#STORAGE-TOAST-ONDISK. When you try to convert one type to another and it stored different way postgres will rewrite all values. Fortunately some types stored same way and postgres need to do nothing to change type, but in some cases postgres need to check that all values have same with new type limitations.  
+
+### Multiversion Concurrency Control
+
+Regarding documentation https://www.postgresql.org/docs/current/static/mvcc-intro.html data consistency in postgres is maintained by using a multiversion model. This means that each SQL statement sees a snapshot of data. It has advantage that adding and deleting columns without any indexes, constrains and defaults do not change exist data, new version of data will be create on `INSERT` and `UPDATE`, delete just mark you record expired. All garbage will be collected later by `VACUUM` or `AUTO VACUUM`.
 
 ### Django migrations hacks
 
@@ -175,7 +204,7 @@ Any schema changes can be processed with creation of new table and copy data to 
 |  3 | `CREATE TABLE`                                | X    |                               | safe operation, because your business logic shouldn't operate with new table on migration time \*
 |  4 | `DROP TABLE`                                  | X    |                               | safe operation, because your business logic shouldn't operate with this table on migration time \*
 |  5 | `ALTER TABLE RENAME TO`                       |      | **NO**                        | **unsafe operation**, it's too hard write business logic that operate with two tables simultaneously, so propose `CREATE TABLE` and then copy all data to new table \*
-|  6 | `ALTER TABLE SET TABLESPACE`                  |      | **NO**                        | **unsafe operation**, but probably you don't need it at all or frequently \*
+|  6 | `ALTER TABLE SET TABLESPACE`                  |      | **NO**                        | **unsafe operation**, but probably you don't need it at all or often \*
 |  7 | `ALTER TABLE ADD COLUMN`                      | X    |                               | safe operation if without `SET NOT NULL`, `SET DEFAULT`, `PRIMARY KEY`, `UNIQUE` \*
 |  8 | `ALTER TABLE ADD COLUMN SET DEFAULT`          |      | add column and set default    | **unsafe operation**, because you spend time in migration to populate all values in table, so propose `ALTER TABLE ADD COLUMN` and then populate column and then `SET DEFAULT` \*
 |  9 | `ALTER TABLE ADD COLUMN SET NOT NULL`         |      | +/-                           | **unsafe operation**, because doesn't work without `SET DEFAULT`, so propose `ALTER TABLE ADD COLUMN` and then populate column and then `ALTER TABLE ALTER COLUMN SET NOT NULL` \* and \*\*
@@ -215,7 +244,7 @@ Any schema changes can be processed with creation of new table and copy data to 
 
 Migrations: `CREATE SEQUENCE`, `DROP SEQUENCE`, `CREATE TABLE`, `DROP TABLE`, `ALTER TABLE ADD COLUMN`, `ALTER TABLE DROP COLUMN`.
 
-This migrations are pretty safe, because you'r logic doesn't work with this data before migration
+This migrations are pretty safe, because your logic doesn't work with this data before migration
 
 ##### Changes for working logic
 
