@@ -1147,3 +1147,176 @@ def test_remove_index_together__ok(mocker):
     assert editor.collected_sql == [
         'DROP INDEX CONCURRENTLY IF EXISTS "tests_model_field_idx";',
     ]
+
+
+@pytest.mark.skipif(django.VERSION[:2] < (2, 2), reason='functionality provided in django 2.2')
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_add_meta_check_constraint__ok():
+    with cmp_schema_editor() as editor:
+        editor.add_constraint(Model, models.CheckConstraint(check=models.Q(field1__gt=0), name='field1_gt_0'))
+    assert editor.collected_sql == timeouts(
+        'ALTER TABLE "tests_model" ADD CONSTRAINT "field1_gt_0" '
+        'CHECK ("field1" > 0) NOT VALID;',
+    ) + [
+        'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "field1_gt_0";',
+    ]
+
+
+@pytest.mark.skipif(django.VERSION[:2] < (2, 2), reason='functionality provided in django 2.2')
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
+                   ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
+def test_add_meta_check_constraint__with_flexible_timeout__ok():
+    with cmp_schema_editor() as editor:
+        editor.add_constraint(Model, models.CheckConstraint(check=models.Q(field1__gt=0), name='field1_gt_0'))
+    assert editor.collected_sql == timeouts(
+        'ALTER TABLE "tests_model" ADD CONSTRAINT "field1_gt_0" '
+        'CHECK ("field1" > 0) NOT VALID;',
+    ) + flexible_statement_timeout(
+        'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "field1_gt_0";',
+    )
+
+
+@pytest.mark.skipif(django.VERSION[:2] < (2, 2), reason='functionality provided in django 2.2')
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_drop_meta_check_constraint__ok():
+    with cmp_schema_editor() as editor:
+        editor.remove_constraint(Model, models.CheckConstraint(check=models.Q(field1__gt=0), name='field1_gt_0'))
+    assert editor.collected_sql == timeouts(
+        'ALTER TABLE "tests_model" DROP CONSTRAINT "field1_gt_0";',
+    )
+
+
+@pytest.mark.skipif(django.VERSION[:2] < (2, 2), reason='functionality provided in django 2.2')
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_add_meta_unique_constraint__ok():
+    with cmp_schema_editor() as editor:
+        editor.add_constraint(Model, models.UniqueConstraint(fields=('field1',), name='field1_uniq'))
+    assert editor.collected_sql == [
+        'CREATE UNIQUE INDEX CONCURRENTLY "field1_uniq" ON "tests_model" ("field1");',
+    ] + timeouts(
+        'ALTER TABLE "tests_model" ADD CONSTRAINT "field1_uniq" '
+        'UNIQUE USING INDEX "field1_uniq";',
+    )
+
+
+@pytest.mark.skipif(django.VERSION[:2] < (2, 2), reason='functionality provided in django 2.2')
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
+                   ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
+def test_add_meta_unique_constraint__with_flexible_timeout__ok():
+    with cmp_schema_editor() as editor:
+        editor.add_constraint(Model, models.UniqueConstraint(fields=('field1',), name='field1_uniq'))
+    assert editor.collected_sql == flexible_statement_timeout(
+        'CREATE UNIQUE INDEX CONCURRENTLY "field1_uniq" ON "tests_model" ("field1");',
+    ) + timeouts(
+        'ALTER TABLE "tests_model" ADD CONSTRAINT "field1_uniq" '
+        'UNIQUE USING INDEX "field1_uniq";',
+    )
+
+
+@pytest.mark.skipif(django.VERSION[:2] < (2, 2), reason='functionality provided in django 2.2')
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_add_meta_multicolumn_unique_constraint__ok():
+    with cmp_schema_editor() as editor:
+        editor.add_constraint(Model, models.UniqueConstraint(fields=('field1', 'field2'), name='field1_field2_uniq'))
+    assert editor.collected_sql == [
+        'CREATE UNIQUE INDEX CONCURRENTLY "field1_field2_uniq" ON "tests_model" ("field1", "field2");',
+    ] + timeouts(
+        'ALTER TABLE "tests_model" ADD CONSTRAINT "field1_field2_uniq" '
+        'UNIQUE USING INDEX "field1_field2_uniq";',
+    )
+
+
+@pytest.mark.skipif(django.VERSION[:2] < (2, 2), reason='functionality provided in django 2.2')
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_add_meta_conditional_unique_constraint__ok():
+    with cmp_schema_editor() as editor:
+        editor.add_constraint(Model, models.UniqueConstraint(
+            fields=('field1',), name='field1_uniq', condition=models.Q(field1__gt=0)))
+    assert editor.collected_sql == [
+        'CREATE UNIQUE INDEX CONCURRENTLY "field1_uniq" ON "tests_model" ("field1") WHERE "field1" > 0;',
+    ]
+
+
+@pytest.mark.skipif(django.VERSION[:2] < (2, 2), reason='functionality provided in django 2.2')
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_add_meta_conditional_multicolumn_unique_constraint__ok():
+    with cmp_schema_editor() as editor:
+        editor.add_constraint(Model, models.UniqueConstraint(
+            fields=('field1', 'field2'), name='field1_field2_uniq', condition=models.Q(field1=models.F('field2'))))
+    assert editor.collected_sql == [
+        'CREATE UNIQUE INDEX CONCURRENTLY "field1_field2_uniq" ON "tests_model" ("field1", "field2") '
+        'WHERE "field1" = ("field2");',
+    ]
+
+
+@pytest.mark.skipif(django.VERSION[:2] < (2, 2), reason='functionality provided in django 2.2')
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_drop_meta_unique_constraint__ok():
+    with cmp_schema_editor() as editor:
+        editor.remove_constraint(Model, models.UniqueConstraint(fields=('field1',), name='field1_uniq'))
+    assert editor.collected_sql == timeouts(
+        'ALTER TABLE "tests_model" DROP CONSTRAINT "field1_uniq";',
+    )
+
+
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_add_meta_index__ok():
+    with cmp_schema_editor() as editor:
+        editor.add_index(Model, models.Index(fields=['field1'], name='tests_model_field1_9b60dc_idx'))
+    assert editor.collected_sql == [
+        'CREATE INDEX CONCURRENTLY "tests_model_field1_9b60dc_idx" '
+        'ON "tests_model" ("field1");',
+    ]
+
+
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
+                   ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
+def test_add_meta_index__with_flexible_timeout__ok():
+    with cmp_schema_editor() as editor:
+        editor.add_index(Model, models.Index(fields=['field1'], name='tests_model_field1_9b60dc_idx'))
+    assert editor.collected_sql == flexible_statement_timeout(
+        'CREATE INDEX CONCURRENTLY "tests_model_field1_9b60dc_idx" '
+        'ON "tests_model" ("field1");',
+    )
+
+
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_add_meta_multicolumn_index__ok():
+    with cmp_schema_editor() as editor:
+        editor.add_index(Model, models.Index(fields=['field1', 'field2'], name='tests_model_field1_45bc7f_idx'))
+    assert editor.collected_sql == [
+        'CREATE INDEX CONCURRENTLY "tests_model_field1_45bc7f_idx" '
+        'ON "tests_model" ("field1", "field2");',
+    ]
+
+
+@pytest.mark.skipif(django.VERSION[:2] < (2, 2), reason='functionality provided in django 2.2')
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_add_meta_conditional_index__ok():
+    with cmp_schema_editor() as editor:
+        editor.add_index(Model, models.Index(condition=models.Q(field1__gt=0), fields=['field1'], name='field1_idx'))
+    assert editor.collected_sql == [
+        'CREATE INDEX CONCURRENTLY "field1_idx" '
+        'ON "tests_model" ("field1") WHERE "tests_model"."field1" > 0;',
+    ]
+
+
+@pytest.mark.skipif(django.VERSION[:2] < (2, 2), reason='functionality provided in django 2.2')
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_add_meta_conditional_multicolumn_index__ok():
+    with cmp_schema_editor() as editor:
+        editor.add_index(Model, models.Index(condition=models.Q(field1__gt=0), fields=['field1', 'field2'],
+                                             name='field1_field2_idx'))
+    assert editor.collected_sql == [
+        'CREATE INDEX CONCURRENTLY "field1_field2_idx" '
+        'ON "tests_model" ("field1", "field2") WHERE "tests_model"."field1" > 0;',
+    ]
+
+
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_drop_meta_index__ok():
+    with cmp_schema_editor() as editor:
+        editor.remove_index(Model, models.Index(fields=['field1'], name='tests_model_field1_9b60dc_idx'))
+    assert editor.collected_sql == [
+        'DROP INDEX CONCURRENTLY IF EXISTS "tests_model_field1_9b60dc_idx";',
+    ]
