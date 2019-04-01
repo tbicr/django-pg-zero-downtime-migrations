@@ -22,6 +22,7 @@ setup(
         'Framework :: Django',
         'Framework :: Django :: 2.0',
         'Framework :: Django :: 2.1',
+        'Framework :: Django :: 2.2',
     ],
     keywords='django postgres postgresql migrations',
     packages=find_packages(exclude=['tests*']),

@@ -1,5 +1,11 @@
 # django-pg-zero-downtime-migrations changelog
 
+## 0.3
+  - add django 2.2 support with `Meta.indexes` and `Meta.constraints` attributes
+  - fix python deprecation warnings for regexp
+  - remove unused `TimeoutException`
+  - improve README and PYPI description
+
 ## 0.2
   - add option that allow disable `statement_timeout` for long operations like index creation on constraint validation when statement_timeout set globally
 

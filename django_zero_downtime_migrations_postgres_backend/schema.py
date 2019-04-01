@@ -2,6 +2,7 @@ import re
 import warnings
 from contextlib import contextmanager
 
+import django
 from django.conf import settings
 from django.db.backends.ddl_references import Statement
 from django.db.backends.postgresql.schema import (
@@ -119,16 +120,26 @@ class DatabaseSchemaEditor(PostgresDatabaseSchemaEditor):
     )
     sql_delete_pk = PGAccessExclusive(PostgresDatabaseSchemaEditor.sql_delete_pk)
 
-    sql_create_index = PGShareUpdateExclusive(
-        "CREATE INDEX CONCURRENTLY %(name)s ON %(table)s%(using)s (%(columns)s)%(extra)s",
-        disable_statement_timeout=True
-    )
-    sql_create_varchar_index = PGShareUpdateExclusive(
-        "CREATE INDEX CONCURRENTLY %(name)s ON %(table)s (%(columns)s varchar_pattern_ops)%(extra)s",
-        disable_statement_timeout=True
-    )
-    sql_create_text_index = PGShareUpdateExclusive(
-        "CREATE INDEX CONCURRENTLY %(name)s ON %(table)s (%(columns)s text_pattern_ops)%(extra)s",
+    if django.VERSION[:2] < (2, 2):
+        sql_create_index = PGShareUpdateExclusive(
+            "CREATE INDEX CONCURRENTLY %(name)s ON %(table)s%(using)s (%(columns)s)%(extra)s",
+            disable_statement_timeout=True
+        )
+        sql_create_varchar_index = PGShareUpdateExclusive(
+            "CREATE INDEX CONCURRENTLY %(name)s ON %(table)s (%(columns)s varchar_pattern_ops)%(extra)s",
+            disable_statement_timeout=True
+        )
+        sql_create_text_index = PGShareUpdateExclusive(
+            "CREATE INDEX CONCURRENTLY %(name)s ON %(table)s (%(columns)s text_pattern_ops)%(extra)s",
+            disable_statement_timeout=True
+        )
+    else:
+        sql_create_index = PGShareUpdateExclusive(
+            "CREATE INDEX CONCURRENTLY %(name)s ON %(table)s%(using)s (%(columns)s)%(extra)s%(condition)s",
+            disable_statement_timeout=True
+        )
+    sql_create_unique_index = PGShareUpdateExclusive(
+        "CREATE UNIQUE INDEX CONCURRENTLY %(name)s ON %(table)s (%(columns)s)%(condition)s",
         disable_statement_timeout=True
     )
     sql_delete_index = PGShareUpdateExclusive("DROP INDEX CONCURRENTLY IF EXISTS %(name)s")
