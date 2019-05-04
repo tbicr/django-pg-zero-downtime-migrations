@@ -77,6 +77,13 @@ class cmp_schema_editor:
         return getattr(self.editor, self.method)(*args, **kwargs)
 
 
+@pytest.fixture(autouse=True)
+def zero_timeouts():
+    with override_settings(ZERO_DOWNTIME_MIGRATIONS_LOCK_TIMEOUT=0):
+        with override_settings(ZERO_DOWNTIME_MIGRATIONS_STATEMENT_TIMEOUT=0):
+            yield
+
+
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_create_model__ok():
     with cmp_schema_editor() as editor:

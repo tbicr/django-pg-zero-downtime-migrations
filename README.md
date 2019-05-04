@@ -11,7 +11,7 @@ Django postgresql backend that apply migrations with respect to database locks.
 
 ## Usage
 
-To enable zero downtime migrations for postgres just setup django backend provided by this package:
+To enable zero downtime migrations for postgres just setup django backend provided by this package and add most safe settings:
 
     DATABASES = {
         'default': {
@@ -19,6 +19,11 @@ To enable zero downtime migrations for postgres just setup django backend provid
             ...
         }
     }
+    ZERO_DOWNTIME_MIGRATIONS_LOCK_TIMEOUT = '2s'
+    ZERO_DOWNTIME_MIGRATIONS_STATEMENT_TIMEOUT = '2s'
+    ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT = True
+    ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE = True
+    ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL = False
 
 > *NOTE:* this backend brings zero downtime improvements only for migrations (schema and `RunSQL` operations, but not for `RunPython` operation), for other purpose it works the same as standard django backend.
 
@@ -49,31 +54,39 @@ If our deployment don't satisfy zero downtime deployment rules, then we split it
 
 #### ZERO_DOWNTIME_MIGRATIONS_LOCK_TIMEOUT
 
-Apply [`statement_timeout`](https://www.postgresql.org/docs/current/static/runtime-config-client.html#GUC-STATEMENT-TIMEOUT):
+Apply [`statement_timeout`](https://www.postgresql.org/docs/current/static/runtime-config-client.html#GUC-STATEMENT-TIMEOUT) for SQL statements that require `ACCESS EXCLUSIVE` lock, default `None`:
 
     ZERO_DOWNTIME_MIGRATIONS_LOCK_TIMEOUT = '2s'
+    
+Allowed values:
+ - `None` - current postgres setting used
+ - other - timeout will be applied, `0` and equivalents mean that timeout will be disabled
 
 #### ZERO_DOWNTIME_MIGRATIONS_STATEMENT_TIMEOUT
 
-Apply [`lock_timeout`](https://www.postgresql.org/docs/current/static/runtime-config-client.html#GUC-LOCK-TIMEOUT):
+Apply [`lock_timeout`](https://www.postgresql.org/docs/current/static/runtime-config-client.html#GUC-LOCK-TIMEOUT) for SQL statements that require `ACCESS EXCLUSIVE` lock, default `None`:
 
     ZERO_DOWNTIME_MIGRATIONS_STATEMENT_TIMEOUT = '2s'
+    
+Allowed values:
+ - `None` - current postgres setting used
+ - other - timeout will be applied, `0` and equivalents mean that timeout will be disabled
 
 #### ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT
 
-Set [`statement_timeout`](https://www.postgresql.org/docs/current/static/runtime-config-client.html#GUC-STATEMENT-TIMEOUT) to `0ms` in case when `statement_timeout` enabled globally and you try run long-running operation like index creation or constraint validation:
+Set [`statement_timeout`](https://www.postgresql.org/docs/current/static/runtime-config-client.html#GUC-STATEMENT-TIMEOUT) to `0ms` for SQL statements that require `SHARE UPDATE EXCLUSIVE` lock that useful in case when `statement_timeout` enabled globally and you try run long-running operations like index creation or constraint validation, default `False`:
 
     ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT = True
 
 #### ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE
 
-Enabled option doesn't allow run potential unsafe migration.
+Enabled option doesn't allow run potential unsafe migration, default `False`:
 
     ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE = True
 
 #### ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL
 
-Set policy for avoiding `NOT NULL` constraint creation long lock.
+Set policy for avoiding `NOT NULL` constraint creation long lock, default `None`:
 
     ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL = 10 ** 7
 
