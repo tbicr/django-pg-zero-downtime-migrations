@@ -1,6 +1,7 @@
 # django-pg-zero-downtime-migrations changelog
 
 ## 0.4
+  - fix adding nullable field with default had no error and warning issue
   - add links to documentation with issue describing and safe alternatives usage for errors and warnings
   - add updates to documentations with type casting workarounds
   

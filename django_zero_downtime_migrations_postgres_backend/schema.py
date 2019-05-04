@@ -11,6 +11,11 @@ from django.db.backends.postgresql.schema import (
 
 
 class Unsafe:
+    ADD_COLUMN_DEFAULT = (
+        "ADD COLUMN DEFAULT is unsafe operation\n"
+        "See details for safe alternative "
+        "https://github.com/tbicr/django-pg-zero-downtime-migrations#create-column-with-default"
+    )
     ADD_COLUMN_NOT_NULL = (
         "ADD COLUMN NOT NULL is unsafe operation\n"
         "See details for safe alternative "
@@ -290,6 +295,13 @@ class DatabaseSchemaEditor(PostgresDatabaseSchemaEditor):
                 return True
         return False
 
+    def _add_column_default(self):
+        if self.RAISE_FOR_UNSAFE:
+            raise UnsafeOperationException(Unsafe.ADD_COLUMN_DEFAULT)
+        else:
+            warnings.warn(UnsafeOperationWarning(Unsafe.ADD_COLUMN_DEFAULT))
+        return " DEFAULT %s"
+
     def _add_column_not_null(self, model, field):
         if self.RAISE_FOR_UNSAFE and self.USE_NOT_NULL is None:
             raise UnsafeOperationException(Unsafe.ADD_COLUMN_NOT_NULL)
@@ -338,14 +350,8 @@ class DatabaseSchemaEditor(PostgresDatabaseSchemaEditor):
         if include_default:
             default_value = self.effective_default(field)
             if default_value is not None:
-                if self.connection.features.requires_literal_defaults:
-                    # Some databases can't take defaults as a parameter (oracle)
-                    # If this is the case, the individual schema backend should
-                    # implement prepare_default
-                    sql += " DEFAULT %s" % self.prepare_default(default_value)
-                else:
-                    sql += " DEFAULT %s"
-                    params += [default_value]
+                sql += self._add_column_default()
+                params += [default_value]
         # Oracle treats the empty string ('') as null, so coerce the null
         # option whenever '' is a possible value.
         if (field.empty_strings_allowed and not field.primary_key and
