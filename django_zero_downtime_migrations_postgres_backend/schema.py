@@ -10,6 +10,39 @@ from django.db.backends.postgresql.schema import (
 )
 
 
+class Unsafe:
+    ADD_COLUMN_NOT_NULL = (
+        "ADD COLUMN NOT NULL is unsafe operation\n"
+        "See details for safe alternative "
+        "https://github.com/tbicr/django-pg-zero-downtime-migrations#dealing-with-not-null-constraint"
+    )
+    ALTER_COLUMN_NOT_NULL = (
+        "ALTER COLUMN NOT NULL is unsafe operation\n"
+        "See details for safe alternative "
+        "https://github.com/tbicr/django-pg-zero-downtime-migrations#dealing-with-not-null-constraint"
+    )
+    ALTER_COLUMN_TYPE = (
+        "ALTER COLUMN TYPE is unsafe operation\n"
+        "See details for safe alternative "
+        "https://github.com/tbicr/django-pg-zero-downtime-migrations#dealing-with-alter-table-alter-column-type"
+    )
+    ALTER_TABLE_RENAME = (
+        "ALTER TABLE RENAME is unsafe operation\n"
+        "See details for save alternative "
+        "https://github.com/tbicr/django-pg-zero-downtime-migrations#changes-for-working-logic"
+    )
+    ALTER_TABLE_SET_TABLESPACE = (
+        "ALTER TABLE SET TABLESPACE is unsafe operation\n"
+        "See details for save alternative "
+        "https://github.com/tbicr/django-pg-zero-downtime-migrations#changes-for-working-logic"
+    )
+    ALTER_TABLE_RENAME_COLUMN = (
+        "ALTER TABLE RENAME COLUMN is unsafe operation\n"
+        "See details for save alternative "
+        "https://github.com/tbicr/django-pg-zero-downtime-migrations#changes-for-working-logic"
+    )
+
+
 class UnsafeOperationWarning(Warning):
     pass
 
@@ -220,23 +253,23 @@ class DatabaseSchemaEditor(PostgresDatabaseSchemaEditor):
 
     def alter_db_table(self, model, old_db_table, new_db_table):
         if self.RAISE_FOR_UNSAFE:
-            raise UnsafeOperationException("ALTER TABLE RENAME is unsafe operation")
+            raise UnsafeOperationException(Unsafe.ALTER_TABLE_RENAME)
         else:
-            warnings.warn(UnsafeOperationWarning("ALTER TABLE RENAME is unsafe operation"))
+            warnings.warn(UnsafeOperationWarning(Unsafe.ALTER_TABLE_RENAME))
         return super().alter_db_table(model, old_db_table, new_db_table)
 
     def alter_db_tablespace(self, model, old_db_tablespace, new_db_tablespace):
         if self.RAISE_FOR_UNSAFE:
-            raise UnsafeOperationException("ALTER TABLE SET TABLESPACE is unsafe operation")
+            raise UnsafeOperationException(Unsafe.ALTER_TABLE_SET_TABLESPACE)
         else:
-            warnings.warn(UnsafeOperationWarning("ALTER TABLE SET TABLESPACE is unsafe operation"))
+            warnings.warn(UnsafeOperationWarning(Unsafe.ALTER_TABLE_SET_TABLESPACE))
         return super().alter_db_tablespace(model, old_db_tablespace, new_db_tablespace)
 
     def _rename_field_sql(self, table, old_field, new_field, new_type):
         if self.RAISE_FOR_UNSAFE:
-            raise UnsafeOperationException("ALTER TABLE RENAME COLUMN is unsafe operation")
+            raise UnsafeOperationException(Unsafe.ALTER_TABLE_RENAME_COLUMN)
         else:
-            warnings.warn(UnsafeOperationWarning("ALTER TABLE RENAME COLUMN is unsafe operation"))
+            warnings.warn(UnsafeOperationWarning(Unsafe.ALTER_TABLE_RENAME_COLUMN))
         return super()._rename_field_sql(table, old_field, new_field, new_type)
 
     def _get_table_rows_count(self, model):
@@ -259,7 +292,7 @@ class DatabaseSchemaEditor(PostgresDatabaseSchemaEditor):
 
     def _add_column_not_null(self, model, field):
         if self.RAISE_FOR_UNSAFE and self.USE_NOT_NULL is None:
-            raise UnsafeOperationException("ADD COLUMN NOT NULL is unsafe operation")
+            raise UnsafeOperationException(Unsafe.ADD_COLUMN_NOT_NULL)
         if self._use_check_constraint_for_not_null(model):
             self.deferred_sql.append(self._sql_column_not_null_compatible % {
                 "column": self.quote_name(field.column),
@@ -268,7 +301,7 @@ class DatabaseSchemaEditor(PostgresDatabaseSchemaEditor):
             })
             return ""
         else:
-            warnings.warn(UnsafeOperationWarning("ADD COLUMN NOT NULL is unsafe operation"))
+            warnings.warn(UnsafeOperationWarning(Unsafe.ADD_COLUMN_NOT_NULL))
             return " NOT NULL"
 
     def _add_column_primary_key(self, model, field):
@@ -336,7 +369,7 @@ class DatabaseSchemaEditor(PostgresDatabaseSchemaEditor):
 
     def _alter_column_set_not_null(self, model, new_field):
         if self.RAISE_FOR_UNSAFE and self.USE_NOT_NULL is None:
-            raise UnsafeOperationException("ALTER COLUMN NOT NULL is unsafe operation")
+            raise UnsafeOperationException(Unsafe.ALTER_COLUMN_NOT_NULL)
         if self._use_check_constraint_for_not_null(model):
             self.deferred_sql.append(self._sql_column_not_null_compatible % {
                 "column": self.quote_name(new_field.column),
@@ -347,7 +380,7 @@ class DatabaseSchemaEditor(PostgresDatabaseSchemaEditor):
             })
             return None
         else:
-            warnings.warn(UnsafeOperationWarning("ALTER COLUMN NOT NULL is unsafe operation"))
+            warnings.warn(UnsafeOperationWarning(Unsafe.ALTER_COLUMN_NOT_NULL))
             return self.sql_alter_column_not_null % {
                 "column": self.quote_name(new_field.column),
             }, []
@@ -407,7 +440,7 @@ class DatabaseSchemaEditor(PostgresDatabaseSchemaEditor):
         old_type = old_db_params["type"]
         if not self._immediate_type_cast(old_type, new_type):
             if self.RAISE_FOR_UNSAFE:
-                raise UnsafeOperationException("ALTER COLUMN TYPE is unsafe operation")
+                raise UnsafeOperationException(Unsafe.ALTER_COLUMN_TYPE)
             else:
-                warnings.warn(UnsafeOperationWarning("ALTER COLUMN TYPE is unsafe operation"))
+                warnings.warn(UnsafeOperationWarning(Unsafe.ALTER_COLUMN_TYPE))
         return super()._alter_column_type_sql(model, old_field, new_field, new_type)

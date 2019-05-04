@@ -281,4 +281,9 @@ Next operations are safe:
 2. `varchar(ANY)` to `text`
 3. `numeric(LESS, SAME)` to `numeric(MORE, SAME)` where LESS < MORE and SAME == SAME
 
+For other types migration will rewrite whole table (eg. will get downtime), so there are two ways to dealing with it:
+
+1. create new column, copy exist data, drop old column
+2. downtime
+
 For other operations propose to create new column and copy data to it. Eg. some types can be also safe, but you should check yourself.

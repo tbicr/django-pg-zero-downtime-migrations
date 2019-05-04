@@ -1,5 +1,9 @@
 # django-pg-zero-downtime-migrations changelog
 
+## 0.4
+  - add links to documentation with issue describing and safe alternatives usage for errors and warnings
+  - add updates to documentations with type casting workarounds
+  
 ## 0.3
   - add django 2.2 support with `Meta.indexes` and `Meta.constraints` attributes
   - fix python deprecation warnings for regexp
