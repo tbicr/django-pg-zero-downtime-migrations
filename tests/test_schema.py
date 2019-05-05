@@ -77,6 +77,13 @@ class cmp_schema_editor:
         return getattr(self.editor, self.method)(*args, **kwargs)
 
 
+@pytest.fixture(autouse=True)
+def zero_timeouts():
+    with override_settings(ZERO_DOWNTIME_MIGRATIONS_LOCK_TIMEOUT=0):
+        with override_settings(ZERO_DOWNTIME_MIGRATIONS_STATEMENT_TIMEOUT=0):
+            yield
+
+
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_create_model__ok():
     with cmp_schema_editor() as editor:
@@ -92,27 +99,31 @@ def test_drop_model__ok():
 
 
 def test_rename_model__warning():
-    with cmp_schema_editor() as editor, pytest.warns(UnsafeOperationWarning):
-        editor.alter_db_table(Model, 'old_name', 'new_name')
+    with cmp_schema_editor() as editor:
+        with pytest.warns(UnsafeOperationWarning, match='ALTER TABLE RENAME is unsafe operation'):
+            editor.alter_db_table(Model, 'old_name', 'new_name')
     assert editor.collected_sql == timeouts(editor.core_editor.collected_sql)
 
 
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_rename_model__raise():
-    with cmp_schema_editor() as editor, pytest.raises(UnsafeOperationException):
-        editor.alter_db_table(Model, 'old_name', 'old_name')
+    with cmp_schema_editor() as editor:
+        with pytest.raises(UnsafeOperationException, match='ALTER TABLE RENAME is unsafe operation'):
+            editor.alter_db_table(Model, 'old_name', 'old_name')
 
 
 def test_change_model_tablespace__warning():
-    with cmp_schema_editor() as editor, pytest.warns(UnsafeOperationWarning):
-        editor.alter_db_table(Model, 'old_tablespace', 'new_tablespace')
+    with cmp_schema_editor() as editor:
+        with pytest.warns(UnsafeOperationWarning, match='ALTER TABLE SET TABLESPACE is unsafe operation'):
+            editor.alter_db_tablespace(Model, 'old_tablespace', 'new_tablespace')
     assert editor.collected_sql == timeouts(editor.core_editor.collected_sql)
 
 
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_change_model_tablespace__raise():
-    with cmp_schema_editor() as editor, pytest.raises(UnsafeOperationException):
-        editor.alter_db_table(Model, 'old_tablespace', 'new_tablespace')
+    with cmp_schema_editor() as editor:
+        with pytest.raises(UnsafeOperationException, match='ALTER TABLE SET TABLESPACE is unsafe operation'):
+            editor.alter_db_tablespace(Model, 'old_tablespace', 'new_tablespace')
 
 
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
@@ -125,12 +136,13 @@ def test_add_field__ok():
 
 
 def test_add_field_with_default__warning():
-    with cmp_schema_editor() as editor, pytest.warns(UnsafeOperationWarning):
-        field = models.CharField(max_length=40, default='test')
-        field.set_attributes_from_name('field')
-        editor.add_field(Model, field)
+    with cmp_schema_editor() as editor:
+        with pytest.warns(UnsafeOperationWarning, match='ADD COLUMN DEFAULT is unsafe operation'):
+            field = models.CharField(max_length=40, default='test', null=True)
+            field.set_attributes_from_name('field')
+            editor.add_field(Model, field)
     assert editor.collected_sql == timeouts(
-        'ALTER TABLE "tests_model" ADD COLUMN "field" varchar(40) DEFAULT \'test\' NOT NULL;'
+        'ALTER TABLE "tests_model" ADD COLUMN "field" varchar(40) DEFAULT \'test\' NULL;'
     ) + timeouts(
         'ALTER TABLE "tests_model" ALTER COLUMN "field" DROP DEFAULT;'
     )
@@ -138,35 +150,39 @@ def test_add_field_with_default__warning():
 
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_add_field_with_default__raise():
-    with cmp_schema_editor() as editor, pytest.raises(UnsafeOperationException):
-        field = models.CharField(max_length=40, default='test')
-        field.set_attributes_from_name('field')
-        editor.add_field(Model, field)
+    with cmp_schema_editor() as editor:
+        with pytest.raises(UnsafeOperationException, match='ADD COLUMN DEFAULT is unsafe operation'):
+            field = models.CharField(max_length=40, default='test', null=True)
+            field.set_attributes_from_name('field')
+            editor.add_field(Model, field)
 
 
 def test_add_field_with_not_null__warning():
-    with cmp_schema_editor() as editor, pytest.warns(UnsafeOperationWarning):
-        field = models.CharField(max_length=40, null=False)
-        field.set_attributes_from_name('field')
-        editor.add_field(Model, field)
+    with cmp_schema_editor() as editor:
+        with pytest.warns(UnsafeOperationWarning, match='ADD COLUMN NOT NULL is unsafe operation'):
+            field = models.CharField(max_length=40, null=False)
+            field.set_attributes_from_name('field')
+            editor.add_field(Model, field)
     assert editor.collected_sql == timeouts(editor.core_editor.collected_sql)
 
 
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_add_field_with_not_null__raise():
-    with cmp_schema_editor() as editor, pytest.raises(UnsafeOperationException):
-        field = models.CharField(max_length=40, null=False)
-        field.set_attributes_from_name('field')
-        editor.add_field(Model, field)
+    with cmp_schema_editor() as editor:
+        with pytest.raises(UnsafeOperationException, match='ADD COLUMN NOT NULL is unsafe operation'):
+            field = models.CharField(max_length=40, null=False)
+            field.set_attributes_from_name('field')
+            editor.add_field(Model, field)
 
 
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
                    ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=True)
 def test_add_field_with_not_null__allowed_for_all_tables__warning():
-    with cmp_schema_editor() as editor, pytest.warns(UnsafeOperationWarning):
-        field = models.CharField(max_length=40, null=False)
-        field.set_attributes_from_name('field')
-        editor.add_field(Model, field)
+    with cmp_schema_editor() as editor:
+        with pytest.warns(UnsafeOperationWarning, match='ADD COLUMN NOT NULL is unsafe operation'):
+            field = models.CharField(max_length=40, null=False)
+            field.set_attributes_from_name('field')
+            editor.add_field(Model, field)
     assert editor.collected_sql == timeouts(editor.core_editor.collected_sql)
 
 
@@ -174,10 +190,11 @@ def test_add_field_with_not_null__allowed_for_all_tables__warning():
                    ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=10)
 def test_add_field_with_not_null__allowed_for_small_tables__warning(mocker):
     mocker.patch.object(connection, 'cursor')().__enter__().fetchone.return_value = (5,)
-    with cmp_schema_editor() as editor, pytest.warns(UnsafeOperationWarning):
-        field = models.CharField(max_length=40, null=False)
-        field.set_attributes_from_name('field')
-        editor.add_field(Model, field)
+    with cmp_schema_editor() as editor:
+        with pytest.warns(UnsafeOperationWarning, match='ADD COLUMN NOT NULL is unsafe operation'):
+            field = models.CharField(max_length=40, null=False)
+            field.set_attributes_from_name('field')
+            editor.add_field(Model, field)
     assert editor.collected_sql == timeouts(editor.core_editor.collected_sql)
 
 
@@ -393,23 +410,25 @@ def test_add_field_with_unique__with_flexible_timeout__ok():
 
 
 def test_alter_field_varchar40_to_varchar20__warning():
-    with cmp_schema_editor() as editor, pytest.warns(UnsafeOperationWarning):
-        old_field = models.CharField(max_length=40)
-        old_field.set_attributes_from_name('field')
-        new_field = models.CharField(max_length=20)
-        new_field.set_attributes_from_name('field')
-        editor.alter_field(Model, old_field, new_field)
-        assert editor.collected_sql == timeouts(editor.core_editor.collected_sql)
+    with cmp_schema_editor() as editor:
+        with pytest.warns(UnsafeOperationWarning, match='ALTER COLUMN TYPE is unsafe operation'):
+            old_field = models.CharField(max_length=40)
+            old_field.set_attributes_from_name('field')
+            new_field = models.CharField(max_length=20)
+            new_field.set_attributes_from_name('field')
+            editor.alter_field(Model, old_field, new_field)
+            assert editor.collected_sql == timeouts(editor.core_editor.collected_sql)
 
 
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_alter_field_varchar40_to_varchar20_error():
-    with cmp_schema_editor() as editor, pytest.raises(UnsafeOperationException):
-        old_field = models.CharField(max_length=40)
-        old_field.set_attributes_from_name('field')
-        new_field = models.CharField(max_length=20)
-        new_field.set_attributes_from_name('field')
-        editor.alter_field(Model, old_field, new_field)
+    with cmp_schema_editor() as editor:
+        with pytest.raises(UnsafeOperationException, match='ALTER COLUMN TYPE is unsafe operation'):
+            old_field = models.CharField(max_length=40)
+            old_field.set_attributes_from_name('field')
+            new_field = models.CharField(max_length=20)
+            new_field.set_attributes_from_name('field')
+            editor.alter_field(Model, old_field, new_field)
 
 
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
@@ -435,23 +454,25 @@ def test_alter_field_varchar40_to_text__ok():
 
 
 def test_alter_field_decimal10_2_to_decimal5_2__warning():
-    with cmp_schema_editor() as editor, pytest.warns(UnsafeOperationWarning):
-        old_field = models.DecimalField(max_digits=10, decimal_places=2)
-        old_field.set_attributes_from_name('field')
-        new_field = models.DecimalField(max_digits=5, decimal_places=2)
-        new_field.set_attributes_from_name('field')
-        editor.alter_field(Model, old_field, new_field)
+    with cmp_schema_editor() as editor:
+        with pytest.warns(UnsafeOperationWarning, match='ALTER COLUMN TYPE is unsafe operation'):
+            old_field = models.DecimalField(max_digits=10, decimal_places=2)
+            old_field.set_attributes_from_name('field')
+            new_field = models.DecimalField(max_digits=5, decimal_places=2)
+            new_field.set_attributes_from_name('field')
+            editor.alter_field(Model, old_field, new_field)
     assert editor.collected_sql == timeouts(editor.core_editor.collected_sql)
 
 
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_alter_field_decimal10_2_to_decimal5_2__raise():
-    with cmp_schema_editor() as editor, pytest.raises(UnsafeOperationException):
-        old_field = models.DecimalField(max_digits=10, decimal_places=2)
-        old_field.set_attributes_from_name('field')
-        new_field = models.DecimalField(max_digits=5, decimal_places=2)
-        new_field.set_attributes_from_name('field')
-        editor.alter_field(Model, old_field, new_field)
+    with cmp_schema_editor() as editor:
+        with pytest.raises(UnsafeOperationException, match='ALTER COLUMN TYPE is unsafe operation'):
+            old_field = models.DecimalField(max_digits=10, decimal_places=2)
+            old_field.set_attributes_from_name('field')
+            new_field = models.DecimalField(max_digits=5, decimal_places=2)
+            new_field.set_attributes_from_name('field')
+            editor.alter_field(Model, old_field, new_field)
 
 
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
@@ -466,74 +487,81 @@ def test_alter_field_decimal10_2_to_decimal20_2__ok():
 
 
 def test_alter_field_decimal10_2_to_decimal10_3__warning():
-    with cmp_schema_editor() as editor, pytest.warns(UnsafeOperationWarning):
-        old_field = models.DecimalField(max_digits=10, decimal_places=2)
-        old_field.set_attributes_from_name('field')
-        new_field = models.DecimalField(max_digits=10, decimal_places=3)
-        new_field.set_attributes_from_name('field')
-        editor.alter_field(Model, old_field, new_field)
+    with cmp_schema_editor() as editor:
+        with pytest.warns(UnsafeOperationWarning, match='ALTER COLUMN TYPE is unsafe operation'):
+            old_field = models.DecimalField(max_digits=10, decimal_places=2)
+            old_field.set_attributes_from_name('field')
+            new_field = models.DecimalField(max_digits=10, decimal_places=3)
+            new_field.set_attributes_from_name('field')
+            editor.alter_field(Model, old_field, new_field)
     assert editor.collected_sql == timeouts(editor.core_editor.collected_sql)
 
 
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_alter_field_decimal10_2_to_decimal10_3__raise():
-    with cmp_schema_editor() as editor, pytest.raises(UnsafeOperationException):
-        old_field = models.DecimalField(max_digits=10, decimal_places=2)
-        old_field.set_attributes_from_name('field')
-        new_field = models.DecimalField(max_digits=10, decimal_places=3)
-        new_field.set_attributes_from_name('field')
-        editor.alter_field(Model, old_field, new_field)
+    with cmp_schema_editor() as editor:
+        with pytest.raises(UnsafeOperationException, match='ALTER COLUMN TYPE is unsafe operation'):
+            old_field = models.DecimalField(max_digits=10, decimal_places=2)
+            old_field.set_attributes_from_name('field')
+            new_field = models.DecimalField(max_digits=10, decimal_places=3)
+            new_field.set_attributes_from_name('field')
+            editor.alter_field(Model, old_field, new_field)
 
 
 def test_alter_field_decimal10_2_to_decimal10_1__warning():
-    with cmp_schema_editor() as editor, pytest.warns(UnsafeOperationWarning):
-        old_field = models.DecimalField(max_digits=10, decimal_places=2)
-        old_field.set_attributes_from_name('field')
-        new_field = models.DecimalField(max_digits=10, decimal_places=1)
-        new_field.set_attributes_from_name('field')
-        editor.alter_field(Model, old_field, new_field)
+    with cmp_schema_editor() as editor:
+        with pytest.warns(UnsafeOperationWarning, match='ALTER COLUMN TYPE is unsafe operation'):
+            old_field = models.DecimalField(max_digits=10, decimal_places=2)
+            old_field.set_attributes_from_name('field')
+            new_field = models.DecimalField(max_digits=10, decimal_places=1)
+            new_field.set_attributes_from_name('field')
+            editor.alter_field(Model, old_field, new_field)
     assert editor.collected_sql == timeouts(editor.core_editor.collected_sql)
 
 
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_alter_field_decimal10_2_to_decimal10_1__raise():
-    with cmp_schema_editor() as editor, pytest.raises(UnsafeOperationException):
-        old_field = models.DecimalField(max_digits=10, decimal_places=2)
-        old_field.set_attributes_from_name('field')
-        new_field = models.DecimalField(max_digits=10, decimal_places=1)
-        new_field.set_attributes_from_name('field')
-        editor.alter_field(Model, old_field, new_field)
+    with cmp_schema_editor() as editor:
+        with pytest.raises(UnsafeOperationException, match='ALTER COLUMN TYPE is unsafe operation'):
+            old_field = models.DecimalField(max_digits=10, decimal_places=2)
+            old_field.set_attributes_from_name('field')
+            new_field = models.DecimalField(max_digits=10, decimal_places=1)
+            new_field.set_attributes_from_name('field')
+            editor.alter_field(Model, old_field, new_field)
 
 
 def test_alter_field_set_not_null__warning():
-    with cmp_schema_editor() as editor, pytest.warns(UnsafeOperationWarning):
-        old_field = models.CharField(max_length=40, null=True)
-        old_field.set_attributes_from_name('field')
-        new_field = models.CharField(max_length=40, null=False)
-        new_field.set_attributes_from_name('field')
-        editor.alter_field(Model, old_field, new_field)
+    with cmp_schema_editor() as editor:
+        with pytest.warns(UnsafeOperationWarning, match='ALTER COLUMN NOT NULL is unsafe operation'):
+            old_field = models.CharField(max_length=40, null=True)
+            old_field.set_attributes_from_name('field')
+            new_field = models.CharField(max_length=40, null=False)
+            new_field.set_attributes_from_name('field')
+            editor.alter_field(Model, old_field, new_field)
     assert editor.collected_sql == timeouts(editor.core_editor.collected_sql)
 
 
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_alter_field_set_not_null__raise():
-    with cmp_schema_editor() as editor, pytest.raises(UnsafeOperationException):
-        old_field = models.CharField(max_length=40, null=True)
-        old_field.set_attributes_from_name('field')
-        new_field = models.CharField(max_length=40, null=False)
-        new_field.set_attributes_from_name('field')
-        editor.alter_field(Model, old_field, new_field)
+    with cmp_schema_editor() as editor:
+        with pytest.raises(UnsafeOperationException, match='ALTER COLUMN NOT NULL is unsafe operation'):
+            old_field = models.CharField(max_length=40, null=True)
+            old_field.set_attributes_from_name('field')
+            new_field = models.CharField(max_length=40, null=False)
+            new_field.set_attributes_from_name('field')
+            editor.alter_field(Model, old_field, new_field)
 
 
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
                    ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=True)
 def test_alter_field_set_not_null__allowed_for_all_tables__warning():
-    with cmp_schema_editor() as editor, pytest.warns(UnsafeOperationWarning):
-        old_field = models.CharField(max_length=40, null=True)
-        old_field.set_attributes_from_name('field')
-        new_field = models.CharField(max_length=40, null=False)
-        new_field.set_attributes_from_name('field')
-        editor.alter_field(Model, old_field, new_field)
+    with cmp_schema_editor() as editor:
+        with pytest.warns(UnsafeOperationWarning, match='ALTER COLUMN NOT NULL is unsafe operation'):
+            old_field = models.CharField(max_length=40, null=True)
+            old_field.set_attributes_from_name('field')
+            new_field = models.CharField(max_length=40, null=False)
+            new_field.set_attributes_from_name('field')
+            editor.alter_field(Model, old_field, new_field)
     assert editor.collected_sql == timeouts(editor.core_editor.collected_sql)
 
 
@@ -541,12 +569,13 @@ def test_alter_field_set_not_null__allowed_for_all_tables__warning():
                    ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=10)
 def test_alter_field_set_not_null__allowed_for_small_tables__warning(mocker):
     mocker.patch.object(connection, 'cursor')().__enter__().fetchone.return_value = (5,)
-    with cmp_schema_editor() as editor, pytest.warns(UnsafeOperationWarning):
-        old_field = models.CharField(max_length=40, null=True)
-        old_field.set_attributes_from_name('field')
-        new_field = models.CharField(max_length=40, null=False)
-        new_field.set_attributes_from_name('field')
-        editor.alter_field(Model, old_field, new_field)
+    with cmp_schema_editor() as editor:
+        with pytest.warns(UnsafeOperationWarning, match='ALTER COLUMN NOT NULL is unsafe operation'):
+            old_field = models.CharField(max_length=40, null=True)
+            old_field.set_attributes_from_name('field')
+            new_field = models.CharField(max_length=40, null=False)
+            new_field.set_attributes_from_name('field')
+            editor.alter_field(Model, old_field, new_field)
     assert editor.collected_sql == timeouts(editor.core_editor.collected_sql)
 
 
@@ -675,23 +704,25 @@ def test_alter_field_drop_default__ok():
 
 
 def test_rename_field__warning():
-    with cmp_schema_editor() as editor, pytest.warns(UnsafeOperationWarning):
-        old_field = models.CharField(max_length=40)
-        old_field.set_attributes_from_name('old_field')
-        new_field = models.CharField(max_length=40)
-        new_field.set_attributes_from_name('new_field')
-        editor.alter_field(Model, old_field, new_field)
+    with cmp_schema_editor() as editor:
+        with pytest.warns(UnsafeOperationWarning, match='ALTER TABLE RENAME COLUMN is unsafe operation'):
+            old_field = models.CharField(max_length=40)
+            old_field.set_attributes_from_name('old_field')
+            new_field = models.CharField(max_length=40)
+            new_field.set_attributes_from_name('new_field')
+            editor.alter_field(Model, old_field, new_field)
     assert editor.collected_sql == timeouts(editor.core_editor.collected_sql)
 
 
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_rename_field__raise():
-    with cmp_schema_editor() as editor, pytest.raises(UnsafeOperationException):
-        old_field = models.CharField(max_length=40)
-        old_field.set_attributes_from_name('old_field')
-        new_field = models.CharField(max_length=40)
-        new_field.set_attributes_from_name('new_field')
-        editor.alter_field(Model, old_field, new_field)
+    with cmp_schema_editor() as editor:
+        with pytest.raises(UnsafeOperationException, match='ALTER TABLE RENAME COLUMN is unsafe operation'):
+            old_field = models.CharField(max_length=40)
+            old_field.set_attributes_from_name('old_field')
+            new_field = models.CharField(max_length=40)
+            new_field.set_attributes_from_name('new_field')
+            editor.alter_field(Model, old_field, new_field)
 
 
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
