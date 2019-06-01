@@ -76,7 +76,7 @@ WSGI_APPLICATION = 'tests2.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql_psycopg2',
+        'ENGINE': 'django_zero_downtime_migrations.backends.postgres',
         'NAME': 'postgres',
         'USER': 'postgres',
         'HOST': 'postgres',

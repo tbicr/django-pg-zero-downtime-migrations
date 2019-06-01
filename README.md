@@ -15,7 +15,8 @@ To enable zero downtime migrations for postgres just setup django backend provid
 
     DATABASES = {
         'default': {
-            'ENGINE': 'django_zero_downtime_migrations_postgres_backend',
+            'ENGINE': 'django_zero_downtime_migrations.backends.postgres',
+            #'ENGINE': 'django_zero_downtime_migrations.backends.postgis',
             ...
         }
     }
@@ -97,6 +98,8 @@ Allowed values:
  - `int` value - use `CHECK (field IS NOT NULL)` instead `NOT NULL` constraint if table has more than `value` rows (approximate rows count used) otherwise use `NOT NULL` constraint (don't raise for `ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE = True`)
 
 ### Dealing with partial indexes
+
+> *NOTE:* django 2.2 support native partial index mechanism: https://docs.djangoproject.com/en/2.2/ref/models/indexes/#condition and https://docs.djangoproject.com/en/2.2/ref/models/constraints/#condition.
 
 If you using https://github.com/mattiaslinnap/django-partial-index package for partial indexes in postgres, then you can easily make this package also safe for migrations:
 
@@ -293,10 +296,5 @@ Next operations are safe:
 1. `varchar(LESS)` to `varchar(MORE)` where LESS < MORE
 2. `varchar(ANY)` to `text`
 3. `numeric(LESS, SAME)` to `numeric(MORE, SAME)` where LESS < MORE and SAME == SAME
-
-For other types migration will rewrite whole table (eg. will get downtime), so there are two ways to dealing with it:
-
-1. create new column, copy exist data, drop old column
-2. downtime
 
 For other operations propose to create new column and copy data to it. Eg. some types can be also safe, but you should check yourself.
