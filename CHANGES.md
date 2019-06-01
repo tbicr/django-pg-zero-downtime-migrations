@@ -4,6 +4,7 @@
   - extract zero-downtime-schema to mixin to allow use this logic with other backends
   - move module from `django_zero_downtime_migrations_postgres_backend` to `django_zero_downtime_migrations.backends.postgres`
   - mark `django_zero_downtime_migrations_postgres_backend` module as deprecated
+  - add postgis backend support
 
 ## 0.4
   - change defaults for `ZERO_DOWNTIME_MIGRATIONS_LOCK_TIMEOUT` and `ZERO_DOWNTIME_MIGRATIONS_STATEMENT_TIMEOUT` from `0ms` to `None` to get same with default django behavior that respect default postgres timeouts

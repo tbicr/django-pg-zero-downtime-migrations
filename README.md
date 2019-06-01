@@ -16,6 +16,7 @@ To enable zero downtime migrations for postgres just setup django backend provid
     DATABASES = {
         'default': {
             'ENGINE': 'django_zero_downtime_migrations.backends.postgres',
+            #'ENGINE': 'django_zero_downtime_migrations.backends.postgis',
             ...
         }
     }
