@@ -2,7 +2,7 @@ from setuptools import find_packages, setup
 
 setup(
     name='django-pg-zero-downtime-migrations',
-    version='0.4',
+    version='0.5',
     author='Paveł Tyślacki',
     author_email='pavel.tyslacki@gmail.com',
     license='MIT',
