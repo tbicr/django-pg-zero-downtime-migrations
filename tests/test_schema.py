@@ -1,16 +1,21 @@
 from functools import partial
 
 import django
+from django.conf import settings
 from django.db import connection, models
 from django.db.backends.postgresql.schema import (
     DatabaseSchemaEditor as CoreDatabaseSchemaEditor
 )
 from django.test import override_settings
+from django.utils.module_loading import import_string
 
 import pytest
-from django_zero_downtime_migrations_postgres_backend.schema import (
-    DatabaseSchemaEditor, UnsafeOperationException, UnsafeOperationWarning
+from django_zero_downtime_migrations.backends.postgres.schema import (
+    UnsafeOperationException, UnsafeOperationWarning
 )
+
+DatabaseSchemaEditor = import_string(settings.DATABASES['default']['ENGINE'] + '.schema.DatabaseSchemaEditor')
+
 
 START_TIMEOUTS = [
     'SET statement_timeout TO \'0\';',

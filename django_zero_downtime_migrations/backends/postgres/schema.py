@@ -108,7 +108,7 @@ class PGShareUpdateExclusive(PGLock):
     pass
 
 
-class DatabaseSchemaEditor(PostgresDatabaseSchemaEditor):
+class DatabaseSchemaEditorMixin:
     ZERO_TIMEOUT = '0ms'
 
     sql_get_lock_timeout = "SELECT setting || unit FROM pg_settings WHERE name = 'lock_timeout'"
@@ -450,3 +450,7 @@ class DatabaseSchemaEditor(PostgresDatabaseSchemaEditor):
             else:
                 warnings.warn(UnsafeOperationWarning(Unsafe.ALTER_COLUMN_TYPE))
         return super()._alter_column_type_sql(model, old_field, new_field, new_type)
+
+
+class DatabaseSchemaEditor(DatabaseSchemaEditorMixin, PostgresDatabaseSchemaEditor):
+    pass
