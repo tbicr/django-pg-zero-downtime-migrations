@@ -32,7 +32,7 @@ To enable zero downtime migrations for postgres just setup django backend provid
 
 ### Differences with standard django backend
 
-This backend provides same result state (instead `NOT NULL` constraint replacement), but different way and with additional guarantees for avoiding stuck tables lock.
+This backend provides same result state (except `NOT NULL` constraint replacement if appropriate option configured), but different way and with additional guarantees for avoiding stuck table locks.
 
 This backend doesn't use transactions for migrations (except `RunPython` operation), because not all fixed SQL can be run in transaction and it allows to avoid deadlocks for complex migration. So when your migration will down in middle of transaction you need fix it manually (instead potential downtime).
 
@@ -45,13 +45,17 @@ There ara main rules for zero downtime deployment:
 1. Our application works fine before, on and after migration - old application works fine with old and new database schema version;
 1. Our application works fine before, on and after instance updating - old and new application versions work fine with new database schema version.
 
+![deployment timeline](images/timeline.png "deployment timeline")
+
 Flow:
 1. apply migrations
 1. disconnect instance form balancer, restart it and back to balancer - repeat this operation one by one for all instances
 
 If our deployment don't satisfy zero downtime deployment rules, then we split it to smaller deployments.
 
-### Additional settings
+![deployment flow](images/deployment.gif "deployment flow")
+
+### Settings
 
 #### ZERO_DOWNTIME_MIGRATIONS_LOCK_TIMEOUT
 
@@ -143,13 +147,13 @@ Lets split this lock to migration and business logic operations.
 | `SHARE`                  | `CREATE INDEX`                                                                                            |
 | `SHARE UPDATE EXCLUSIVE` | `CREATE INDEX CONCURRENTLY`, `DROP INDEX CONCURRENTLY` \*\*\*, `ALTER TABLE VALIDATE CONSTRAINT` \*\*\*\* |
 
-\*: `CREATE SEQUENCE`, `DROP SEQUENCE`, `CREATE TABLE`, `DROP TABLE` shouldn't have conflicts, because your logic shouldn't operate with it
+\*: `CREATE SEQUENCE`, `DROP SEQUENCE`, `CREATE TABLE`, `DROP TABLE` shouldn't have conflicts, because your business logic shouldn't yet operate with created tables and shouldn't already operate with deleted tables.
 
-\*\*: Not all `ALTER TABLE` operations take `ACCESS EXCLUSIVE` lock, but all current django's migrations take it https://github.com/django/django/blob/master/django/db/backends/base/schema.py, https://github.com/django/django/blob/master/django/db/backends/postgresql/schema.py and https://www.postgresql.org/docs/current/static/sql-altertable.html
+\*\*: Not all `ALTER TABLE` operations take `ACCESS EXCLUSIVE` lock, but all current django's migrations take it https://github.com/django/django/blob/master/django/db/backends/base/schema.py, https://github.com/django/django/blob/master/django/db/backends/postgresql/schema.py and https://www.postgresql.org/docs/current/static/sql-altertable.html.
 
-\*\*\*: Django currently doesn't support `CONCURRENTLY` operations
+\*\*\*: Bare django currently doesn't support `CONCURRENTLY` operations.
 
-\*\*\*\*: Django doesn't have `VALIDATE CONSTRAINT` logic, but we will use it for some cases
+\*\*\*\*: Django doesn't have `VALIDATE CONSTRAINT` logic, but we will use it for some cases.
 
 #### Business logic locks
 
@@ -174,11 +178,11 @@ As business logic mostly works with table rows it's also important to understand
 
 Main point there is if you have two transactions that update one row, then second transaction will wait until first will be completed. So for business logic and data migrations better to avoid updates for whole table and use batch operations instead.
 
-> *NOTE:* batch operations also can work faster because it helps postgres make more optimal execution plan.
+> *NOTE:* batch operations also can work faster because postgres can use more optimal execution plan with indexes for small data range.
 
 ### Transactions FIFO waiting
 
-![postgres FIFO](fifo-diagram.png "postgres FIFO")
+![postgres FIFO](images/fifo-diagram.png "postgres FIFO")
 
 Found same diagram in interesting article http://pankrat.github.io/2015/django-migrations-without-downtimes/.
 
@@ -199,15 +203,15 @@ Postgres has two settings to dealing with `waiting time` and `operation time` pr
 
 ### Deadlocks
 
-There no downtime issues for deadlocks, but too many operations in one transaction will take most conflictable lock and release it only after transaction commit or rollback. So it's a good idea to avoid `ACCESS EXCLUSIVE` lock operations and long time operations in one transaction. Deadlocks also can make you migration stuck on production deployment when different tables will be locked, for example, for FOREIGN KEY that take `ACCESS EXCLUSIVE` lock for two tables.
+There no downtime issues for deadlocks, but too many operations in one transaction can take most conflicted lock and release it only after transaction commit or rollback. So it's a good idea to avoid `ACCESS EXCLUSIVE` lock operations and long time operations in one transaction. Deadlocks also can make you migration stuck on production deployment when different tables will be locked, for example, for FOREIGN KEY that take `ACCESS EXCLUSIVE` lock for two tables.
 
 ### Rows and values storing
 
-Postgres store values of different types different ways https://www.postgresql.org/docs/current/static/storage-toast.html#STORAGE-TOAST-ONDISK. When you try to convert one type to another and it stored different way postgres will rewrite all values. Fortunately some types stored same way and postgres need to do nothing to change type, but in some cases postgres need to check that all values have same with new type limitations.  
+Postgres store values of different types different ways https://www.postgresql.org/docs/current/static/storage-toast.html#STORAGE-TOAST-ONDISK. If you try to convert one type to another and it stored different way then postgres will rewrite all values. Fortunately some types stored same way and postgres need to do nothing to change type, but in some cases postgres need to check that all values have same with new type limitations.  
 
 ### Multiversion Concurrency Control
 
-Regarding documentation https://www.postgresql.org/docs/current/static/mvcc-intro.html data consistency in postgres is maintained by using a multiversion model. This means that each SQL statement sees a snapshot of data. It has advantage that adding and deleting columns without any indexes, constrains and defaults do not change exist data, new version of data will be create on `INSERT` and `UPDATE`, delete just mark you record expired. All garbage will be collected later by `VACUUM` or `AUTO VACUUM`.
+Regarding documentation https://www.postgresql.org/docs/current/static/mvcc-intro.html data consistency in postgres is maintained by using a multiversion model. This means that each SQL statement sees a snapshot of data. It has advantage for adding and deleting columns without any indexes, constrains and defaults do not change exist data, new version of data will be created on `INSERT` and `UPDATE`, delete just mark you record expired. All garbage will be collected later by `VACUUM` or `AUTO VACUUM`.
 
 ### Django migrations hacks
 
@@ -244,13 +248,13 @@ Any schema changes can be processed with creation of new table and copy data to 
 | 27 | `CREATE INDEX`                                |      | `CREATE INDEX CONCURRENTLY`   | **unsafe operation**, because you spend time in migration to create index
 | 28 | `DROP INDEX`                                  | X    | `DROP INDEX CONCURRENTLY`     | safe operation  \*\*\*
 
-\*: main point with migration on production without downtime that your code should correctly work before and after migration, lets look this point closely below
+\*: main point with migration on production without downtime that your code should correctly work before and after migration, lets look this point closely in [Dealing with logic that should work before and after migration](#dealing-with-logic-that-should-work-before-and-after-migration) section.
 
-\*\*: postgres will check that all items in column `NOT NULL` that take time, lets look this point closely below
+\*\*: postgres will check that all items in column `NOT NULL` that take time, lets look this point closely in [Dealing with `NOT NULL` constraint](#dealing-with-not-null-constraint) section.
 
-\*\*\*: postgres will have same behaviour when you skip `ALTER TABLE ADD CONSTRAINT UNIQUE USING INDEX` and still unclear difference with `CONCURRENTLY` except difference in locks, lets look this point closely below
+\*\*\*: postgres will have same behaviour when you skip `ALTER TABLE ADD CONSTRAINT UNIQUE USING INDEX` and still unclear difference with `CONCURRENTLY` except difference in locks, lets look this point closely in [Dealing with `UNIQUE` constraint](#dealing-with-unique-constraint).
 
-\*\*\*\*: lets look this point closely below
+\*\*\*\*: lets look this point closely in [Dealing with `ALTER TABLE ALTER COLUMN TYPE`](#dealing-with-alter-table-alter-column-type) section.
 
 \*\*\*\*\*: if you check migration on CI with `python manage.py makemigrations --check` you can't drop column in code without migration creation, so in this case you can be useful *back migration flow*: apply code on all instances and then migrate database
 
@@ -287,7 +291,7 @@ Postgres check that all column items `NOT NULL` when you applying `NOT NULL` con
 
 #### Dealing with `UNIQUE` constraint
 
-Postgres has two approaches for uniqueness: `CREATE UNIQUE INDEX` and `ALTER TABLE ADD CONSTRAINT UNIQUE` - both use unique index inside. Difference that I see that you cannot apply `DROP INDEX CONCURRENTLY` for constraint. However still unclear what difference for `DROP INDEX` and `DROP INDEX CONCURRENTLY` except difference in locks, but as you see before both marked as safe - you don't spend time in `DROP INDEX`, just wait for lock. So as django use constraint for uniqueness we also have a hacks to use constraint safely.
+Postgres has two approaches for uniqueness: `CREATE UNIQUE INDEX` and `ALTER TABLE ADD CONSTRAINT UNIQUE` - both use unique index inside. Difference that we can find that we cannot apply `DROP INDEX CONCURRENTLY` for constraint. However it still unclear what difference for `DROP INDEX` and `DROP INDEX CONCURRENTLY` except difference in locks, but as we seen before both marked as safe - we don't spend time in `DROP INDEX`, just wait for lock. So as django use constraint for uniqueness we also have a hacks to use constraint safely.
 
 #### Dealing with `ALTER TABLE ALTER COLUMN TYPE`
 
