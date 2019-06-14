@@ -59,7 +59,7 @@ If our deployment don't satisfy zero downtime deployment rules, then we split it
 
 #### ZERO_DOWNTIME_MIGRATIONS_LOCK_TIMEOUT
 
-Apply [`statement_timeout`](https://www.postgresql.org/docs/current/static/runtime-config-client.html#GUC-STATEMENT-TIMEOUT) for SQL statements that require `ACCESS EXCLUSIVE` lock, default `None`:
+Apply [`lock_timeout`](https://www.postgresql.org/docs/current/static/runtime-config-client.html#GUC-LOCK-TIMEOUT) for SQL statements that require `ACCESS EXCLUSIVE` lock, default `None`:
 
     ZERO_DOWNTIME_MIGRATIONS_LOCK_TIMEOUT = '2s'
     
@@ -69,7 +69,7 @@ Allowed values:
 
 #### ZERO_DOWNTIME_MIGRATIONS_STATEMENT_TIMEOUT
 
-Apply [`lock_timeout`](https://www.postgresql.org/docs/current/static/runtime-config-client.html#GUC-LOCK-TIMEOUT) for SQL statements that require `ACCESS EXCLUSIVE` lock, default `None`:
+Apply [`statement_timeout`](https://www.postgresql.org/docs/current/static/runtime-config-client.html#GUC-STATEMENT-TIMEOUT) for SQL statements that require `ACCESS EXCLUSIVE` lock, default `None`:
 
     ZERO_DOWNTIME_MIGRATIONS_STATEMENT_TIMEOUT = '2s'
     
