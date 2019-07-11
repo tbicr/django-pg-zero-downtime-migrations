@@ -1,14 +1,33 @@
 from setuptools import find_packages, setup
 
+VERSION = __import__('django_zero_downtime_migrations').__version__
+
+
+def _replace_internal_images_with_external(text):
+    return text.replace(
+        '(images/',
+        '(https://raw.githubusercontent.com/tbicr/django-pg-zero-downtime-migrations/'
+        '{VERSION}/images/'.format(VERSION=VERSION),
+    )
+
+
+def _get_long_description():
+    with open('README.md') as readme_handle:
+        readme = readme_handle.read()
+    with open('CHANGES.md') as changes_handle:
+        changes = changes_handle.read()
+    return _replace_internal_images_with_external(readme) + '\n\n' + changes
+
+
 setup(
     name='django-pg-zero-downtime-migrations',
-    version='0.5',
+    version=VERSION,
     author='Paveł Tyślacki',
     author_email='pavel.tyslacki@gmail.com',
     license='MIT',
     url='https://github.com/tbicr/django-pg-zero-downtime-migrations',
     description='Django postgresql backend that apply migrations with respect to database locks',
-    long_description=open('README.md').read() + '\n\n' + open('CHANGES.md').read(),
+    long_description=_get_long_description(),
     long_description_content_type='text/markdown',
     classifiers=[
         'Development Status :: 4 - Beta',

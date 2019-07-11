@@ -1,6 +1,8 @@
 # django-pg-zero-downtime-migrations changelog
 
 ## 0.6
+  - add version to package
+  - fix pypi README images links
   - improved README
 
 ## 0.5
