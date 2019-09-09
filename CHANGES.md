@@ -1,13 +1,13 @@
 # django-pg-zero-downtime-migrations changelog
 
 ## 0.6
-  - add version to package
-  - fix pypi README images links
+  - added version to package
+  - fixed pypi README images links
   - improved README
 
 ## 0.5
   - extracted zero-downtime-schema to mixin to allow use this logic with other backends
-  - moveed module from `django_zero_downtime_migrations_postgres_backend` to `django_zero_downtime_migrations.backends.postgres`
+  - moved module from `django_zero_downtime_migrations_postgres_backend` to `django_zero_downtime_migrations.backends.postgres`
   - marked `django_zero_downtime_migrations_postgres_backend` module as deprecated
   - added postgis backend support
   - improved README
