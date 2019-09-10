@@ -305,17 +305,9 @@ class DatabaseSchemaEditorMixin:
     def _add_column_not_null(self, model, field):
         if self.RAISE_FOR_UNSAFE:
             raise UnsafeOperationException(Unsafe.ADD_COLUMN_NOT_NULL)
-        if self._use_check_constraint_for_not_null(model):
-            self.deferred_sql.append(self._sql_column_not_null_compatible % {
-                "column": self.quote_name(field.column),
-                "table": self.quote_name(model._meta.db_table),
-                "name": self.quote_name("{}_{}_notnull".format(model._meta.db_table, field.column)),
-            })
-            warnings.warn(UnsafeOperationWarning(Unsafe.ADD_COLUMN_NOT_NULL))
-            return ""
         else:
             warnings.warn(UnsafeOperationWarning(Unsafe.ADD_COLUMN_NOT_NULL))
-            return " NOT NULL"
+        return " NOT NULL"
 
     def _add_column_primary_key(self, model, field):
         self.deferred_sql.append(self.sql_create_pk % {

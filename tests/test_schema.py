@@ -209,14 +209,7 @@ def test_add_field_with_not_null__use_compatible_constraint_for_large_tables__wa
             field = models.CharField(max_length=40, null=False)
             field.set_attributes_from_name('field')
             editor.add_field(Model, field)
-    assert editor.collected_sql == timeouts(
-        'ALTER TABLE "tests_model" ADD COLUMN "field" varchar(40);',
-    ) + timeouts(
-        'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_notnull" '
-        'CHECK ("field" IS NOT NULL) NOT VALID;',
-    ) + [
-        'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_notnull";',
-    ]
+    assert editor.collected_sql == timeouts(editor.core_editor.collected_sql)
 
 
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=1,
@@ -228,14 +221,7 @@ def test_add_field_with_not_null__use_compatible_constraint_for_large_tables__wi
             field = models.CharField(max_length=40, null=False)
             field.set_attributes_from_name('field')
             editor.add_field(Model, field)
-    assert editor.collected_sql == timeouts(
-        'ALTER TABLE "tests_model" ADD COLUMN "field" varchar(40);',
-    ) + timeouts(
-        'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_notnull" '
-        'CHECK ("field" IS NOT NULL) NOT VALID;',
-    ) + flexible_statement_timeout(
-        'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_notnull";',
-    )
+    assert editor.collected_sql == timeouts(editor.core_editor.collected_sql)
 
 
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=False)
@@ -245,14 +231,7 @@ def test_add_field_with_not_null__use_compatible_constraint_for_all_tables__warn
             field = models.CharField(max_length=40, null=False)
             field.set_attributes_from_name('field')
             editor.add_field(Model, field)
-    assert editor.collected_sql == timeouts(
-        'ALTER TABLE "tests_model" ADD COLUMN "field" varchar(40);',
-    ) + timeouts(
-        'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_notnull" '
-        'CHECK ("field" IS NOT NULL) NOT VALID;',
-    ) + [
-        'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_notnull";',
-    ]
+    assert editor.collected_sql == timeouts(editor.core_editor.collected_sql)
 
 
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=False,
@@ -263,14 +242,7 @@ def test_add_field_with_not_null__use_compatible_constraint_for_all_tables__with
             field = models.CharField(max_length=40, null=False)
             field.set_attributes_from_name('field')
             editor.add_field(Model, field)
-    assert editor.collected_sql == timeouts(
-        'ALTER TABLE "tests_model" ADD COLUMN "field" varchar(40);',
-    ) + timeouts(
-        'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_notnull" '
-        'CHECK ("field" IS NOT NULL) NOT VALID;',
-    ) + flexible_statement_timeout(
-        'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_notnull";',
-    )
+    assert editor.collected_sql == timeouts(editor.core_editor.collected_sql)
 
 
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,

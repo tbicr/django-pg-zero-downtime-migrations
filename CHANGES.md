@@ -1,7 +1,7 @@
 # django-pg-zero-downtime-migrations changelog
 
 ## 0.6
-  - marked `AddField` with `null=False` parameter and compatible `CHECK IS NOT NULL` constraint option as unsafe operation
+  - marked `AddField` with `null=False` parameter and compatible `CHECK IS NOT NULL` constraint option as unsafe operation and avoid `ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL` value in this case
   - added version to package
   - fixed pypi README images links
   - improved README
