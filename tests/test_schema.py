@@ -180,8 +180,7 @@ def test_add_field_with_not_null__raise():
             editor.add_field(Model, field)
 
 
-@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
-                   ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=True)
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=True)
 def test_add_field_with_not_null__allowed_for_all_tables__warning():
     with cmp_schema_editor() as editor:
         with pytest.warns(UnsafeOperationWarning, match='ADD COLUMN NOT NULL is unsafe operation'):
@@ -191,8 +190,7 @@ def test_add_field_with_not_null__allowed_for_all_tables__warning():
     assert editor.collected_sql == timeouts(editor.core_editor.collected_sql)
 
 
-@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
-                   ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=10)
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=10)
 def test_add_field_with_not_null__allowed_for_small_tables__warning(mocker):
     mocker.patch.object(connection, 'cursor')().__enter__().fetchone.return_value = (5,)
     with cmp_schema_editor() as editor:
@@ -203,14 +201,14 @@ def test_add_field_with_not_null__allowed_for_small_tables__warning(mocker):
     assert editor.collected_sql == timeouts(editor.core_editor.collected_sql)
 
 
-@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
-                   ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=1)
-def test_add_field_with_not_null__use_compatible_constraint_for_large_tables__ok(mocker):
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=1)
+def test_add_field_with_not_null__use_compatible_constraint_for_large_tables__warning(mocker):
     mocker.patch.object(connection, 'cursor')().__enter__().fetchone.return_value = (5,)
     with cmp_schema_editor() as editor:
-        field = models.CharField(max_length=40, null=False)
-        field.set_attributes_from_name('field')
-        editor.add_field(Model, field)
+        with pytest.warns(UnsafeOperationWarning, match='ADD COLUMN NOT NULL is unsafe operation'):
+            field = models.CharField(max_length=40, null=False)
+            field.set_attributes_from_name('field')
+            editor.add_field(Model, field)
     assert editor.collected_sql == timeouts(
         'ALTER TABLE "tests_model" ADD COLUMN "field" varchar(40);',
     ) + timeouts(
@@ -221,15 +219,15 @@ def test_add_field_with_not_null__use_compatible_constraint_for_large_tables__ok
     ]
 
 
-@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
-                   ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=1,
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=1,
                    ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
-def test_add_field_with_not_null__use_compatible_constraint_for_large_tables__with_flexible_timeout__ok(mocker):
+def test_add_field_with_not_null__use_compatible_constraint_for_large_tables__with_flexible_timeout__warning(mocker):
     mocker.patch.object(connection, 'cursor')().__enter__().fetchone.return_value = (5,)
     with cmp_schema_editor() as editor:
-        field = models.CharField(max_length=40, null=False)
-        field.set_attributes_from_name('field')
-        editor.add_field(Model, field)
+        with pytest.warns(UnsafeOperationWarning, match='ADD COLUMN NOT NULL is unsafe operation'):
+            field = models.CharField(max_length=40, null=False)
+            field.set_attributes_from_name('field')
+            editor.add_field(Model, field)
     assert editor.collected_sql == timeouts(
         'ALTER TABLE "tests_model" ADD COLUMN "field" varchar(40);',
     ) + timeouts(
@@ -238,41 +236,83 @@ def test_add_field_with_not_null__use_compatible_constraint_for_large_tables__wi
     ) + flexible_statement_timeout(
         'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_notnull";',
     )
+
+
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=False)
+def test_add_field_with_not_null__use_compatible_constraint_for_all_tables__warning():
+    with cmp_schema_editor() as editor:
+        with pytest.warns(UnsafeOperationWarning, match='ADD COLUMN NOT NULL is unsafe operation'):
+            field = models.CharField(max_length=40, null=False)
+            field.set_attributes_from_name('field')
+            editor.add_field(Model, field)
+    assert editor.collected_sql == timeouts(
+        'ALTER TABLE "tests_model" ADD COLUMN "field" varchar(40);',
+    ) + timeouts(
+        'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_notnull" '
+        'CHECK ("field" IS NOT NULL) NOT VALID;',
+    ) + [
+        'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_notnull";',
+    ]
+
+
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=False,
+                   ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
+def test_add_field_with_not_null__use_compatible_constraint_for_all_tables__with_flexible_timeout__warning():
+    with cmp_schema_editor() as editor:
+        with pytest.warns(UnsafeOperationWarning, match='ADD COLUMN NOT NULL is unsafe operation'):
+            field = models.CharField(max_length=40, null=False)
+            field.set_attributes_from_name('field')
+            editor.add_field(Model, field)
+    assert editor.collected_sql == timeouts(
+        'ALTER TABLE "tests_model" ADD COLUMN "field" varchar(40);',
+    ) + timeouts(
+        'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_notnull" '
+        'CHECK ("field" IS NOT NULL) NOT VALID;',
+    ) + flexible_statement_timeout(
+        'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_notnull";',
+    )
+
+
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
+                   ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=True)
+def test_add_field_with_not_null__allowed_for_all_tables__raise():
+    with cmp_schema_editor() as editor:
+        with pytest.raises(UnsafeOperationException, match='ADD COLUMN NOT NULL is unsafe operation'):
+            field = models.CharField(max_length=40, null=False)
+            field.set_attributes_from_name('field')
+            editor.add_field(Model, field)
+
+
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
+                   ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=10)
+def test_add_field_with_not_null__allowed_for_small_tables__raise(mocker):
+    mocker.patch.object(connection, 'cursor')().__enter__().fetchone.return_value = (5,)
+    with cmp_schema_editor() as editor:
+        with pytest.raises(UnsafeOperationException, match='ADD COLUMN NOT NULL is unsafe operation'):
+            field = models.CharField(max_length=40, null=False)
+            field.set_attributes_from_name('field')
+            editor.add_field(Model, field)
+
+
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
+                   ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=1)
+def test_add_field_with_not_null__use_compatible_constraint_for_large_tables__raise(mocker):
+    mocker.patch.object(connection, 'cursor')().__enter__().fetchone.return_value = (5,)
+    with cmp_schema_editor() as editor:
+        with pytest.raises(UnsafeOperationException, match='ADD COLUMN NOT NULL is unsafe operation'):
+            field = models.CharField(max_length=40, null=False)
+            field.set_attributes_from_name('field')
+            editor.add_field(Model, field)
 
 
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
                    ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=False)
-def test_add_field_with_not_null__use_compatible_constraint_for_all_tables__ok():
+def test_add_field_with_not_null__use_compatible_constraint_for_all_tables__raise():
     with cmp_schema_editor() as editor:
-        field = models.CharField(max_length=40, null=False)
-        field.set_attributes_from_name('field')
-        editor.add_field(Model, field)
-    assert editor.collected_sql == timeouts(
-        'ALTER TABLE "tests_model" ADD COLUMN "field" varchar(40);',
-    ) + timeouts(
-        'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_notnull" '
-        'CHECK ("field" IS NOT NULL) NOT VALID;',
-    ) + [
-        'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_notnull";',
-    ]
-
-
-@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
-                   ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=False,
-                   ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
-def test_add_field_with_not_null__use_compatible_constraint_for_all_tables__with_flexible_timeout__ok():
-    with cmp_schema_editor() as editor:
-        field = models.CharField(max_length=40, null=False)
-        field.set_attributes_from_name('field')
-        editor.add_field(Model, field)
-    assert editor.collected_sql == timeouts(
-        'ALTER TABLE "tests_model" ADD COLUMN "field" varchar(40);',
-    ) + timeouts(
-        'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_notnull" '
-        'CHECK ("field" IS NOT NULL) NOT VALID;',
-    ) + flexible_statement_timeout(
-        'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_notnull";',
-    )
+        with pytest.raises(UnsafeOperationException, match='ADD COLUMN NOT NULL is unsafe operation'):
+            field = models.CharField(max_length=40, null=False)
+            field.set_attributes_from_name('field')
+            editor.add_field(Model, field)
 
 
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
