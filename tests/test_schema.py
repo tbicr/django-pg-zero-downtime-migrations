@@ -1,4 +1,4 @@
-from functools import partial
+from functools import partial, wraps
 
 import django
 from django.conf import settings
@@ -17,6 +17,8 @@ from django_zero_downtime_migrations.backends.postgres.schema import (
 DatabaseSchemaEditor = import_string(settings.DATABASES['default']['ENGINE'] + '.schema.DatabaseSchemaEditor')
 
 
+PG_VERSION_12 = 120000
+PG_VERSION_11 = 110000
 START_TIMEOUTS = [
     'SET statement_timeout TO \'0\';',
     'SET lock_timeout TO \'0\';',
@@ -45,6 +47,19 @@ def flexible_statement_timeout(statements):
     return START_FLEXIBLE_STATEMENT_TIMEOUT + statements + END_FLEXIBLE_STATEMENT_TIMEOUT
 
 
+def old_pg(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        old = connection.pg_version
+        connection.pg_version = PG_VERSION_11
+        try:
+            result = func(*args, **kwargs)
+        finally:
+            connection.pg_version = old
+        return result
+    return wrapper
+
+
 class Model(models.Model):
     field1 = models.IntegerField()
     field2 = models.IntegerField()
@@ -54,6 +69,7 @@ class Model2(models.Model):
     pass
 
 
+connection.pg_version = PG_VERSION_12
 schema_editor = partial(DatabaseSchemaEditor, connection=connection, collect_sql=True)
 
 
@@ -547,7 +563,96 @@ def test_alter_field_decimal10_2_to_decimal10_1__raise():
             editor.alter_field(Model, old_field, new_field)
 
 
-def test_alter_field_set_not_null__warning():
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_alter_field_set_not_null__ok():
+    with cmp_schema_editor() as editor:
+        old_field = models.CharField(max_length=40, null=True)
+        old_field.set_attributes_from_name('field')
+        new_field = models.CharField(max_length=40, null=False)
+        new_field.set_attributes_from_name('field')
+        editor.alter_field(Model, old_field, new_field)
+    assert editor.collected_sql == timeouts(
+        'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_0a53d95f_notnull" '
+        'CHECK ("field" IS NOT NULL) NOT VALID;',
+    ) + [
+        'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_0a53d95f_notnull";',
+    ] + timeouts(
+        'ALTER TABLE "tests_model" ALTER COLUMN "field" SET NOT NULL;'
+    ) + timeouts(
+        'ALTER TABLE "tests_model" DROP CONSTRAINT "tests_model_field_0a53d95f_notnull";'
+    )
+
+
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
+                   ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
+def test_alter_field_set_not_null__with_flexible_timeout__ok():
+    with cmp_schema_editor() as editor:
+        old_field = models.CharField(max_length=40, null=True)
+        old_field.set_attributes_from_name('field')
+        new_field = models.CharField(max_length=40, null=False)
+        new_field.set_attributes_from_name('field')
+        editor.alter_field(Model, old_field, new_field)
+    assert editor.collected_sql == timeouts(
+        'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_0a53d95f_notnull" '
+        'CHECK ("field" IS NOT NULL) NOT VALID;',
+    ) + flexible_statement_timeout(
+        'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_0a53d95f_notnull";',
+    ) + timeouts(
+        'ALTER TABLE "tests_model" ALTER COLUMN "field" SET NOT NULL;'
+    ) + timeouts(
+        'ALTER TABLE "tests_model" DROP CONSTRAINT "tests_model_field_0a53d95f_notnull";'
+    )
+
+
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
+                   ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL='USE_PG_ATTRIBUTE_UPDATE_FOR_SUPERUSER')
+@old_pg
+def test_alter_field_set_not_null__old_pg__use_pg_attribute_update__ok():
+    with cmp_schema_editor() as editor:
+        old_field = models.CharField(max_length=40, null=True)
+        old_field.set_attributes_from_name('field')
+        new_field = models.CharField(max_length=40, null=False)
+        new_field.set_attributes_from_name('field')
+        editor.alter_field(Model, old_field, new_field)
+    assert editor.collected_sql == timeouts(
+        'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_0a53d95f_notnull" '
+        'CHECK ("field" IS NOT NULL) NOT VALID;',
+    ) + [
+        'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_0a53d95f_notnull";',
+    ] + [
+        'UPDATE pg_catalog.pg_attribute SET attnotnull = TRUE '
+        'WHERE attrelid = "tests_model"::regclass::oid AND attname = "field";',
+    ] + timeouts(
+        'ALTER TABLE "tests_model" DROP CONSTRAINT "tests_model_field_0a53d95f_notnull";'
+    )
+
+
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
+                   ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL='USE_PG_ATTRIBUTE_UPDATE_FOR_SUPERUSER',
+                   ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
+@old_pg
+def test_alter_field_set_not_null__old_pg__use_pg_attribute_update__with_flexible_timeout__ok():
+    with cmp_schema_editor() as editor:
+        old_field = models.CharField(max_length=40, null=True)
+        old_field.set_attributes_from_name('field')
+        new_field = models.CharField(max_length=40, null=False)
+        new_field.set_attributes_from_name('field')
+        editor.alter_field(Model, old_field, new_field)
+    assert editor.collected_sql == timeouts(
+        'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_0a53d95f_notnull" '
+        'CHECK ("field" IS NOT NULL) NOT VALID;',
+    ) + flexible_statement_timeout(
+        'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_0a53d95f_notnull";',
+    ) + [
+        'UPDATE pg_catalog.pg_attribute SET attnotnull = TRUE '
+        'WHERE attrelid = "tests_model"::regclass::oid AND attname = "field";',
+    ] + timeouts(
+        'ALTER TABLE "tests_model" DROP CONSTRAINT "tests_model_field_0a53d95f_notnull";'
+    )
+
+
+@old_pg
+def test_alter_field_set_not_null__old_pg__warning():
     with cmp_schema_editor() as editor:
         with pytest.warns(UnsafeOperationWarning, match='ALTER COLUMN NOT NULL is unsafe operation'):
             old_field = models.CharField(max_length=40, null=True)
@@ -559,7 +664,8 @@ def test_alter_field_set_not_null__warning():
 
 
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
-def test_alter_field_set_not_null__raise():
+@old_pg
+def test_alter_field_set_not_null__old_pg__raise():
     with cmp_schema_editor() as editor:
         with pytest.raises(UnsafeOperationException, match='ALTER COLUMN NOT NULL is unsafe operation'):
             old_field = models.CharField(max_length=40, null=True)
@@ -571,7 +677,8 @@ def test_alter_field_set_not_null__raise():
 
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
                    ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=True)
-def test_alter_field_set_not_null__allowed_for_all_tables__warning():
+@old_pg
+def test_alter_field_set_not_null__old_pg__allowed_for_all_tables__warning():
     with cmp_schema_editor() as editor:
         with pytest.warns(UnsafeOperationWarning, match='ALTER COLUMN NOT NULL is unsafe operation'):
             old_field = models.CharField(max_length=40, null=True)
@@ -584,7 +691,8 @@ def test_alter_field_set_not_null__allowed_for_all_tables__warning():
 
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
                    ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=10)
-def test_alter_field_set_not_null__allowed_for_small_tables__warning(mocker):
+@old_pg
+def test_alter_field_set_not_null__old_pg__allowed_for_small_tables__warning(mocker):
     mocker.patch.object(connection, 'cursor')().__enter__().fetchone.return_value = (5,)
     with cmp_schema_editor() as editor:
         with pytest.warns(UnsafeOperationWarning, match='ALTER COLUMN NOT NULL is unsafe operation'):
@@ -598,7 +706,8 @@ def test_alter_field_set_not_null__allowed_for_small_tables__warning(mocker):
 
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
                    ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=1)
-def test_alter_field_set_not_null__use_compatible_constraint_for_large_tables__ok(mocker):
+@old_pg
+def test_alter_field_set_not_null__old_pg__use_compatible_constraint_for_large_tables__ok(mocker):
     mocker.patch.object(connection, 'cursor')().__enter__().fetchone.return_value = (5,)
     with cmp_schema_editor() as editor:
         old_field = models.CharField(max_length=40, null=True)
@@ -617,7 +726,10 @@ def test_alter_field_set_not_null__use_compatible_constraint_for_large_tables__o
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
                    ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=1,
                    ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
-def test_alter_field_set_not_null__use_compatible_constraint_for_large_tables__with_flexible_timeout__ok(mocker):
+@old_pg
+def test_alter_field_set_not_null__old_pg__use_compatible_constraint_for_large_tables__with_flexible_timeout__ok(
+    mocker
+):
     mocker.patch.object(connection, 'cursor')().__enter__().fetchone.return_value = (5,)
     with cmp_schema_editor() as editor:
         old_field = models.CharField(max_length=40, null=True)
@@ -635,7 +747,8 @@ def test_alter_field_set_not_null__use_compatible_constraint_for_large_tables__w
 
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
                    ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=False)
-def test_alter_field_set_not_null__use_compatible_constraint_for_all_tables__ok():
+@old_pg
+def test_alter_field_set_not_null__old_pg__use_compatible_constraint_for_all_tables__ok():
     with cmp_schema_editor() as editor:
         old_field = models.CharField(max_length=40, null=True)
         old_field.set_attributes_from_name('field')
@@ -653,7 +766,8 @@ def test_alter_field_set_not_null__use_compatible_constraint_for_all_tables__ok(
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
                    ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=False,
                    ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
-def test_alter_field_set_not_null__use_compatible_constraint_for_all_tables__with_flexible_timeout__ok():
+@old_pg
+def test_alter_field_set_not_null__old_pg__use_compatible_constraint_for_all_tables__with_flexible_timeout__ok():
     with cmp_schema_editor() as editor:
         old_field = models.CharField(max_length=40, null=True)
         old_field.set_attributes_from_name('field')

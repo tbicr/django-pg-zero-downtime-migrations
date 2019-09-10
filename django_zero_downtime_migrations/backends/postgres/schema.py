@@ -8,6 +8,7 @@ from django.db.backends.ddl_references import Statement
 from django.db.backends.postgresql.schema import (
     DatabaseSchemaEditor as PostgresDatabaseSchemaEditor
 )
+from django.utils.functional import cached_property
 
 
 class Unsafe:
@@ -110,6 +111,7 @@ class PGShareUpdateExclusive(PGLock):
 
 class DatabaseSchemaEditorMixin:
     ZERO_TIMEOUT = '0ms'
+    USE_PG_ATTRIBUTE_UPDATE_FOR_SUPERUSER = 'USE_PG_ATTRIBUTE_UPDATE_FOR_SUPERUSER'
 
     sql_get_lock_timeout = "SELECT setting || unit FROM pg_settings WHERE name = 'lock_timeout'"
     sql_get_statement_timeout = "SELECT setting || unit FROM pg_settings WHERE name = 'statement_timeout'"
@@ -187,23 +189,41 @@ class DatabaseSchemaEditorMixin:
         "SELECT conname FROM pg_constraint "
         "WHERE contype = 'c' AND conrelid = '%(table)s'::regclass AND consrc = '(%(columns)s IS NOT NULL)'"
     )
-    _sql_column_not_null_compatible = MultiStatementSQL(
+    _sql_column_not_null_compatible_le_pg12 = MultiStatementSQL(
         PGAccessExclusive("ALTER TABLE %(table)s ADD CONSTRAINT %(name)s CHECK (%(column)s IS NOT NULL) NOT VALID"),
         PGShareUpdateExclusive("ALTER TABLE %(table)s VALIDATE CONSTRAINT %(name)s",
                                disable_statement_timeout=True),
+    )
+    _sql_column_not_null_le_pg12_pg_attributes_for_root = MultiStatementSQL(
+        *_sql_column_not_null_compatible_le_pg12,
+        # pg_catalog.pg_attribute update require extra privileges
+        # that can be granted manually of already available for superusers
+        "UPDATE pg_catalog.pg_attribute SET attnotnull = TRUE "
+        "WHERE attrelid = %(table)s::regclass::oid AND attname = %(column)s",
+        PGAccessExclusive("ALTER TABLE %(table)s DROP CONSTRAINT %(name)s"),
+    )
+
+    _sql_column_not_null = MultiStatementSQL(
+        *_sql_column_not_null_compatible_le_pg12,
+        PGAccessExclusive("ALTER TABLE %(table)s ALTER COLUMN %(column)s SET NOT NULL"),
+        PGAccessExclusive("ALTER TABLE %(table)s DROP CONSTRAINT %(name)s"),
     )
 
     _varchar_type_regexp = re.compile(r'^varchar\((?P<max_length>\d+)\)$')
     _numeric_type_regexp = re.compile(r'^numeric\((?P<precision>\d+), *(?P<scale>\d+)\)$')
 
+    @cached_property
+    def is_postgresql_12(self):
+        return self.connection.pg_version >= 120000
+
     def __init__(self, connection, collect_sql=False, atomic=True):
+        super().__init__(connection, collect_sql=collect_sql, atomic=False)
         self.LOCK_TIMEOUT = getattr(settings, "ZERO_DOWNTIME_MIGRATIONS_LOCK_TIMEOUT", None)
         self.STATEMENT_TIMEOUT = getattr(settings, "ZERO_DOWNTIME_MIGRATIONS_STATEMENT_TIMEOUT", None)
         self.FLEXIBLE_STATEMENT_TIMEOUT = getattr(
             settings, "ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT", False)
         self.USE_NOT_NULL = getattr(settings, "ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL", None)
         self.RAISE_FOR_UNSAFE = getattr(settings, "ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE", False)
-        super().__init__(connection, collect_sql=collect_sql, atomic=False)
 
     def execute(self, sql, params=()):
         statements = []
@@ -283,6 +303,9 @@ class DatabaseSchemaEditorMixin:
             cursor.execute(sql)
             rows_count, = cursor.fetchone()
         return rows_count
+
+    def _use_pg_attribute_update_for_not_null(self):
+        return self.USE_NOT_NULL == self.USE_PG_ATTRIBUTE_UPDATE_FOR_SUPERUSER
 
     def _use_check_constraint_for_not_null(self, model):
         if self.USE_NOT_NULL is True:
@@ -367,15 +390,33 @@ class DatabaseSchemaEditorMixin:
         return sql, params
 
     def _alter_column_set_not_null(self, model, new_field):
-        if self.RAISE_FOR_UNSAFE and self.USE_NOT_NULL is None:
+        if not self.is_postgresql_12 and self.RAISE_FOR_UNSAFE and self.USE_NOT_NULL is None:
             raise UnsafeOperationException(Unsafe.ALTER_COLUMN_NOT_NULL)
-        if self._use_check_constraint_for_not_null(model):
-            self.deferred_sql.append(self._sql_column_not_null_compatible % {
+        elif self.is_postgresql_12:
+            self.deferred_sql.append(self._sql_column_not_null % {
                 "column": self.quote_name(new_field.column),
                 "table": self.quote_name(model._meta.db_table),
                 "name": self.quote_name(
                     self._create_index_name(model._meta.db_table, [new_field.column], suffix="_notnull")
-                )
+                ),
+            })
+            return None
+        elif self._use_pg_attribute_update_for_not_null():
+            self.deferred_sql.append(self._sql_column_not_null_le_pg12_pg_attributes_for_root % {
+                "column": self.quote_name(new_field.column),
+                "table": self.quote_name(model._meta.db_table),
+                "name": self.quote_name(
+                    self._create_index_name(model._meta.db_table, [new_field.column], suffix="_notnull")
+                ),
+            })
+            return None
+        elif self._use_check_constraint_for_not_null(model):
+            self.deferred_sql.append(self._sql_column_not_null_compatible_le_pg12 % {
+                "column": self.quote_name(new_field.column),
+                "table": self.quote_name(model._meta.db_table),
+                "name": self.quote_name(
+                    self._create_index_name(model._meta.db_table, [new_field.column], suffix="_notnull")
+                ),
             })
             return None
         else:

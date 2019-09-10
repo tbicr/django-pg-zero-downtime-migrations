@@ -38,7 +38,7 @@ To enable zero downtime migrations for postgres just setup django backend provid
 
 ### Differences with standard django backend
 
-This backend provides same result state (except `NOT NULL` constraint replacement if appropriate option configured), but different way and with additional guarantees for avoiding stuck table locks.
+This backend provides same result state (except `NOT NULL` constraint replacement for old postgres versions if appropriate option configured), but different way and with additional guarantees for avoiding stuck table locks.
 
 This backend doesn't use transactions for migrations (except `RunPython` operation), because not all fixed SQL can be run in transaction and it allows to avoid deadlocks for complex migration. So when your migration will down in middle of transaction you need fix it manually (instead potential downtime).
 
@@ -106,6 +106,9 @@ Allowed values:
  - `True` - always replace `NOT NULL` constraint with `CHECK (field IS NOT NULL)` (don't raise for `ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE = True`)
  - `False` - always use `NOT NULL` constraint (don't raise for `ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE = True`)
  - `int` value - use `CHECK (field IS NOT NULL)` instead `NOT NULL` constraint if table has more than `value` rows (approximate rows count used) otherwise use `NOT NULL` constraint (don't raise for `ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE = True`)
+ - `USE_PG_ATTRIBUTE_UPDATE_FOR_SUPERUSER` - use `pg_catalog.pg_attribute` update to mark column `NOT NULL` and provide same state as default django backend (don't raise for `ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE = True`).
+ 
+> *NOTE:* For postgres 12 and newest `NOT NULL` constraint creation has migration replacement that provide same state as default django backend, so this option deprecated and doesn't used this postgres version.
 
 ### Dealing with partial indexes
 
@@ -289,11 +292,11 @@ Standard django's behaviour for creation column with default is populate all val
 
 #### Dealing with `NOT NULL` constraint
 
-Postgres check that all column items `NOT NULL` when you applying `NOT NULL` constraint, unfortunately you can't defer this check as for `NOT VALID`. But we have some hacks and alternatives there.
+Postgres check that all column items `NOT NULL` when you applying `NOT NULL` constraint, for postgres 12 and newest it doesn't make this check if appropriate `CHECK CONSTRAINT` exists, but for older versions you can't defer this check as for `NOT VALID`. Fortunately we have some hacks and alternatives there for old postgres versions.
 
 1. Run migrations when load minimal to avoid negative affect of locking.
 2. `SET statement_timeout` and try to set `NOT NULL` constraint for small tables.
-3. Use `CHECK (column IS NOT NULL)` constraint instead that support `NOT VALID` option with next `VALIDATE CONSTRAINT`, see article for details https://medium.com/doctolib-engineering/adding-a-not-null-constraint-on-pg-faster-with-minimal-locking-38b2c00c4d1c.
+3. Use `CHECK (column IS NOT NULL)` constraint instead that support `NOT VALID` option with next `VALIDATE CONSTRAINT`, see article for details https://medium.com/doctolib-engineering/adding-a-not-null-constraint-on-pg-faster-with-minimal-locking-38b2c00c4d1c. There are additionally can be applied `NOT NULL` constraint via direct `pg_catalog.pg_attribute` `attnotnull` update, but it require superuser permissions.
 
 #### Dealing with `UNIQUE` constraint
 
