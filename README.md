@@ -1,6 +1,7 @@
 [![PyPI](https://img.shields.io/pypi/v/django-pg-zero-downtime-migrations.svg)](https://pypi.org/project/django-pg-zero-downtime-migrations/)
 ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/django-pg-zero-downtime-migrations.svg)
-![PyPI - Django Version](https://img.shields.io/pypi/djversions/django-pg-zero-downtime-migrations.svg)
+![PyPI - Django Version](https://img.shields.io/pypi/djversions/django-pg-zero-downtime-migrations.svg?label=django)
+![Postgres Version](https://img.shields.io/badge/postgres-9.4%20|%209.5%20|%209.6%20|%2010%20|%2011%20|%2012%20-blue.svg)
 [![PyPI - License](https://img.shields.io/pypi/l/django-pg-zero-downtime-migrations.svg)](https://raw.githubusercontent.com/tbicr/django-pg-zero-downtime-migrations/master/LICENSE)
 [![PyPI - Downloads](https://img.shields.io/pypi/dm/django-pg-zero-downtime-migrations.svg)](https://pypistats.org/packages/django-pg-zero-downtime-migrations)
 [![GitHub last commit](https://img.shields.io/github/last-commit/tbicr/django-pg-zero-downtime-migrations/master.svg)](https://github.com/tbicr/django-pg-zero-downtime-migrations/commits/master)
@@ -38,7 +39,7 @@ To enable zero downtime migrations for postgres just setup django backend provid
 
 ### Differences with standard django backend
 
-This backend provides same result state (except `NOT NULL` constraint replacement if appropriate option configured), but different way and with additional guarantees for avoiding stuck table locks.
+This backend provides same result state (except `NOT NULL` constraint replacement for old postgres versions if appropriate option configured), but different way and with additional guarantees for avoiding stuck table locks.
 
 This backend doesn't use transactions for migrations (except `RunPython` operation), because not all fixed SQL can be run in transaction and it allows to avoid deadlocks for complex migration. So when your migration will down in middle of transaction you need fix it manually (instead potential downtime).
 
@@ -106,6 +107,9 @@ Allowed values:
  - `True` - always replace `NOT NULL` constraint with `CHECK (field IS NOT NULL)` (don't raise for `ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE = True`)
  - `False` - always use `NOT NULL` constraint (don't raise for `ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE = True`)
  - `int` value - use `CHECK (field IS NOT NULL)` instead `NOT NULL` constraint if table has more than `value` rows (approximate rows count used) otherwise use `NOT NULL` constraint (don't raise for `ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE = True`)
+ - `USE_PG_ATTRIBUTE_UPDATE_FOR_SUPERUSER` - use `pg_catalog.pg_attribute` update to mark column `NOT NULL` and provide same state as default django backend (don't raise for `ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE = True`).
+ 
+> *NOTE:* For postgres 12 and newest `NOT NULL` constraint creation has migration replacement that provide same state as default django backend, so this option deprecated and doesn't used this postgres version. If you use `CHECK NOT NULL` compatible constraint before you can migrate it to `NOT NULL` constraints with `manage.py migrate_isnotnull_check_constraints` management command (add `INSTALLED_APPS += ['django_zero_downtime_migrations']` to `settings.py` to use management command).
 
 ### Dealing with partial indexes
 
@@ -233,7 +237,7 @@ Any schema changes can be processed with creation of new table and copy data to 
 |  6 | `ALTER TABLE SET TABLESPACE`                  |      | **NO**                        | **unsafe operation**, but probably you don't need it at all or often \*
 |  7 | `ALTER TABLE ADD COLUMN`                      | X    |                               | safe operation if without `SET NOT NULL`, `SET DEFAULT`, `PRIMARY KEY`, `UNIQUE` \*
 |  8 | `ALTER TABLE ADD COLUMN SET DEFAULT`          |      | add column and set default    | **unsafe operation**, because you spend time in migration to populate all values in table, so propose `ALTER TABLE ADD COLUMN` and then populate column and then `SET DEFAULT` \*
-|  9 | `ALTER TABLE ADD COLUMN SET NOT NULL`         |      | +/-                           | **unsafe operation**, because doesn't work without `SET DEFAULT`, so propose `ALTER TABLE ADD COLUMN` and then populate column and then `ALTER TABLE ALTER COLUMN SET NOT NULL` \* and \*\*
+|  9 | `ALTER TABLE ADD COLUMN SET NOT NULL`         |      | +/-                           | **unsafe operation**, because doesn't work without `SET DEFAULT` or after migration old code can insert rows without new column and raise exception, so propose `ALTER TABLE ADD COLUMN` and then populate column and then `ALTER TABLE ALTER COLUMN SET NOT NULL` \* and \*\*
 | 10 | `ALTER TABLE ADD COLUMN PRIMARY KEY`          |      | add index and add constraint  | **unsafe operation**, because you spend time in migration to `CREATE INDEX`, so propose `ALTER TABLE ADD COLUMN` and then `CREATE INDEX CONCURRENTLY` and then `ALTER TABLE ADD CONSTRAINT PRIMARY KEY USING INDEX` \*\*\*
 | 11 | `ALTER TABLE ADD COLUMN UNIQUE`               |      | add index and add constraint  | **unsafe operation**, because you spend time in migration to `CREATE INDEX`, so propose `ALTER TABLE ADD COLUMN` and then `CREATE INDEX CONCURRENTLY` and then `ALTER TABLE ADD CONSTRAINT UNIQUE USING INDEX` \*\*\*
 | 12 | `ALTER TABLE ALTER COLUMN TYPE`               |      | +/-                           | **unsafe operation**, because you spend time in migration to check that all items in column valid or to change type, but some operations can be safe \*\*\*\*
@@ -289,11 +293,11 @@ Standard django's behaviour for creation column with default is populate all val
 
 #### Dealing with `NOT NULL` constraint
 
-Postgres check that all column items `NOT NULL` when you applying `NOT NULL` constraint, unfortunately you can't defer this check as for `NOT VALID`. But we have some hacks and alternatives there.
+Postgres check that all column items `NOT NULL` when you applying `NOT NULL` constraint, for postgres 12 and newest it doesn't make this check if appropriate `CHECK CONSTRAINT` exists, but for older versions you can't defer this check as for `NOT VALID`. Fortunately we have some hacks and alternatives there for old postgres versions.
 
 1. Run migrations when load minimal to avoid negative affect of locking.
 2. `SET statement_timeout` and try to set `NOT NULL` constraint for small tables.
-3. Use `CHECK (column IS NOT NULL)` constraint instead that support `NOT VALID` option with next `VALIDATE CONSTRAINT`, see article for details https://medium.com/doctolib-engineering/adding-a-not-null-constraint-on-pg-faster-with-minimal-locking-38b2c00c4d1c.
+3. Use `CHECK (column IS NOT NULL)` constraint instead that support `NOT VALID` option with next `VALIDATE CONSTRAINT`, see article for details https://medium.com/doctolib-engineering/adding-a-not-null-constraint-on-pg-faster-with-minimal-locking-38b2c00c4d1c. There are additionally can be applied `NOT NULL` constraint via direct `pg_catalog.pg_attribute` `attnotnull` update, but it require superuser permissions.
 
 #### Dealing with `UNIQUE` constraint
 

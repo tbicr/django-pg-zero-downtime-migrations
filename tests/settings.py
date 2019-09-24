@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django_zero_downtime_migrations',
     'tests',
 ]
 
@@ -49,8 +50,6 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
-
-ROOT_URLCONF = 'tests2.urls'
 
 TEMPLATES = [
     {
@@ -76,14 +75,22 @@ WSGI_APPLICATION = 'tests2.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django_zero_downtime_migrations.backends.postgres',
-        'NAME': 'postgres',
-        'USER': 'postgres',
-        'HOST': 'postgres',
-        'PORT': '5432',
+        # 'ENGINE': 'django.db.backends.postgresql',
+        'ENGINE': os.getenv('DB_ENGINE', 'django_zero_downtime_migrations.backends.postgres'),
+        'NAME': 'test',
+        'USER': os.getenv('DB_USER', 'postgres'),
+        'PASSWORD': os.getenv('DB_PASSWORD', os.getenv('DB_USER', 'postgres')),
+        'HOST': os.getenv('DB_HOST', 'localhost'),
+        'PORT': os.getenv('DB_PORT', '5432'),
     },
 }
 
+if os.getenv('NOTNULL') == 'true':
+    ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL = True
+elif os.getenv('NOTNULL') == 'false':
+    ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL = False
+elif os.getenv('NOTNULL') == 'super':
+    ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL = 'USE_PG_ATTRIBUTE_UPDATE_FOR_SUPERUSER'
 
 # Password validation
 # https://docs.djangoproject.com/en/2.0/ref/settings/#auth-password-validators
