@@ -276,19 +276,73 @@ class DatabaseSchemaEditorMixin:
         if lock_timeout is not None:
             self.execute(self.sql_set_lock_timeout % {"lock_timeout": previous_lock_timeout})
 
+    def _flush_deferred_sql(self):
+        """As some alternative sql use deferred sql and deferred sql run after all operations in miration module
+         so good idea to run deferred sql as soon as possible to provide similar as possible state
+         between operations in migration module."""
+        for sql in self.deferred_sql:
+            self.execute(sql)
+        self.deferred_sql.clear()
+
+    def create_model(self, model):
+        super().create_model(model)
+        self._flush_deferred_sql()
+
+    def delete_model(self, model):
+        super().delete_model(model)
+        self._flush_deferred_sql()
+
+    def alter_index_together(self, model, old_index_together, new_index_together):
+        super().alter_index_together(model, old_index_together, new_index_together)
+        self._flush_deferred_sql()
+
+    def alter_unique_together(self, model, old_unique_together, new_unique_together):
+        super().alter_unique_together(model, old_unique_together, new_unique_together)
+        self._flush_deferred_sql()
+
+    def add_index(self, model, index):
+        super().add_index(model, index)
+        self._flush_deferred_sql()
+
+    def remove_index(self, model, index):
+        super().remove_index(model, index)
+        self._flush_deferred_sql()
+
+    def add_constraint(self, model, constraint):
+        super().add_constraint(model, constraint)
+        self._flush_deferred_sql()
+
+    def remove_constraint(self, model, constraint):
+        super().remove_constraint(model, constraint)
+        self._flush_deferred_sql()
+
+    def add_field(self, model, field):
+        super().add_field(model, field)
+        self._flush_deferred_sql()
+
+    def remove_field(self, model, field):
+        super().remove_field(model, field)
+        self._flush_deferred_sql()
+
+    def alter_field(self, model, old_field, new_field, strict=False):
+        super().alter_field(model, old_field, new_field, strict)
+        self._flush_deferred_sql()
+
     def alter_db_table(self, model, old_db_table, new_db_table):
         if self.RAISE_FOR_UNSAFE:
             raise UnsafeOperationException(Unsafe.ALTER_TABLE_RENAME)
         else:
             warnings.warn(UnsafeOperationWarning(Unsafe.ALTER_TABLE_RENAME))
-        return super().alter_db_table(model, old_db_table, new_db_table)
+        super().alter_db_table(model, old_db_table, new_db_table)
+        self._flush_deferred_sql()
 
     def alter_db_tablespace(self, model, old_db_tablespace, new_db_tablespace):
         if self.RAISE_FOR_UNSAFE:
             raise UnsafeOperationException(Unsafe.ALTER_TABLE_SET_TABLESPACE)
         else:
             warnings.warn(UnsafeOperationWarning(Unsafe.ALTER_TABLE_SET_TABLESPACE))
-        return super().alter_db_tablespace(model, old_db_tablespace, new_db_tablespace)
+        super().alter_db_tablespace(model, old_db_tablespace, new_db_tablespace)
+        self._flush_deferred_sql()
 
     def _rename_field_sql(self, table, old_field, new_field, new_type):
         if self.RAISE_FOR_UNSAFE:
