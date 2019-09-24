@@ -9,4 +9,5 @@ INSTALLED_APPS += [  # noqa: F405
     'tests.apps.bad_flow_add_column_with_notnull_default_app',
     'tests.apps.bad_flow_add_column_with_notnull_app',
     'tests.apps.bad_flow_change_char_type_that_unsafe_app',
+    'tests.apps.old_notnull_check_constraint_migration_app',
 ]

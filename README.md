@@ -109,7 +109,7 @@ Allowed values:
  - `int` value - use `CHECK (field IS NOT NULL)` instead `NOT NULL` constraint if table has more than `value` rows (approximate rows count used) otherwise use `NOT NULL` constraint (don't raise for `ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE = True`)
  - `USE_PG_ATTRIBUTE_UPDATE_FOR_SUPERUSER` - use `pg_catalog.pg_attribute` update to mark column `NOT NULL` and provide same state as default django backend (don't raise for `ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE = True`).
  
-> *NOTE:* For postgres 12 and newest `NOT NULL` constraint creation has migration replacement that provide same state as default django backend, so this option deprecated and doesn't used this postgres version.
+> *NOTE:* For postgres 12 and newest `NOT NULL` constraint creation has migration replacement that provide same state as default django backend, so this option deprecated and doesn't used this postgres version. If you use `CHECK NOT NULL` compatible constraint before you can migrate it to `NOT NULL` constraints with `manage.py migrate_isnotnull_check_constraints` management command (add `INSTALLED_APPS += ['django_zero_downtime_migrations']` to `settings.py` to use management command).
 
 ### Dealing with partial indexes
 

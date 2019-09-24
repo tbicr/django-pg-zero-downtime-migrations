@@ -1,6 +1,7 @@
 # django-pg-zero-downtime-migrations changelog
 
 ## 0.6
+  - added management command for migration to real `NOT NULL` from `CHECK IS NOT NULL` constraint
   - added integration tests for pg 12, pg 11 root, pg 11 compatible not null constraint, pg 11 standard not null constraint and pg 10, 9.6, 9.5, 9.4, postgis databases
   - fixed compatible check not null constraint deletion and creation via pg_attribute bugs
   - minimized side affect with deferred sql execution between operations in one migration module
