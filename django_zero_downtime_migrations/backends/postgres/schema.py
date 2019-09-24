@@ -57,6 +57,17 @@ class UnsafeOperationException(Exception):
     pass
 
 
+class DummySQL:
+    def __mod__(self, other):
+        return DUMMY_SQL
+
+    def format(self, *args, **kwargs):
+        return DUMMY_SQL
+
+
+DUMMY_SQL = DummySQL()
+
+
 class MultiStatementSQL(list):
 
     def __init__(self, obj, *args):
@@ -71,9 +82,17 @@ class MultiStatementSQL(list):
         return str(self)
 
     def __mod__(self, other):
+        if other is DUMMY_SQL:
+            return DUMMY_SQL
+        if isinstance(other, (list, tuple)) and any(arg is DUMMY_SQL for arg in other):
+            return DUMMY_SQL
+        if isinstance(other, dict) and any(val is DUMMY_SQL for val in other.values()):
+            return DUMMY_SQL
         return MultiStatementSQL(s % other for s in self)
 
     def format(self, *args, **kwargs):
+        if any(arg is DUMMY_SQL for arg in args) or any(val is DUMMY_SQL for val in kwargs.values()):
+            return DUMMY_SQL
         return MultiStatementSQL(s.format(*args, **kwargs) for s in self)
 
 
@@ -93,9 +112,17 @@ class PGLock:
         return str(self)
 
     def __mod__(self, other):
+        if other is DUMMY_SQL:
+            return DUMMY_SQL
+        if isinstance(other, (list, tuple)) and any(arg is DUMMY_SQL for arg in other):
+            return DUMMY_SQL
+        if isinstance(other, dict) and any(val is DUMMY_SQL for val in other.values()):
+            return DUMMY_SQL
         return self.__class__(self.sql % other, self.use_timeouts, self.disable_statement_timeout)
 
     def format(self, *args, **kwargs):
+        if any(arg is DUMMY_SQL for arg in args) or any(val is DUMMY_SQL for val in kwargs.values()):
+            return DUMMY_SQL
         return self.__class__(self.sql.format(*args, **kwargs), self.use_timeouts, self.disable_statement_timeout)
 
 
@@ -187,7 +214,10 @@ class DatabaseSchemaEditorMixin:
     _sql_table_count = "SELECT reltuples FROM pg_class WHERE oid = '%(table)s'::regclass"
     _sql_check_notnull_constraint = (
         "SELECT conname FROM pg_constraint "
-        "WHERE contype = 'c' AND conrelid = '%(table)s'::regclass AND consrc = '(%(columns)s IS NOT NULL)'"
+        "WHERE contype = 'c' "
+        "AND conrelid = '%(table)s'::regclass "
+        "AND conname LIKE '%%_notnull'"
+        "AND pg_get_constraintdef(oid) = replace('CHECK ((%(columns)s IS NOT NULL))', '\"', '')"
     )
     _sql_column_not_null_compatible_le_pg12 = MultiStatementSQL(
         PGAccessExclusive("ALTER TABLE %(table)s ADD CONSTRAINT %(name)s CHECK (%(column)s IS NOT NULL) NOT VALID"),
@@ -199,7 +229,7 @@ class DatabaseSchemaEditorMixin:
         # pg_catalog.pg_attribute update require extra privileges
         # that can be granted manually of already available for superusers
         "UPDATE pg_catalog.pg_attribute SET attnotnull = TRUE "
-        "WHERE attrelid = %(table)s::regclass::oid AND attname = %(column)s",
+        "WHERE attrelid = '%(table)s'::regclass::oid AND attname = replace('%(column)s', '\"', '')",
         PGAccessExclusive("ALTER TABLE %(table)s DROP CONSTRAINT %(name)s"),
     )
 
@@ -217,7 +247,14 @@ class DatabaseSchemaEditorMixin:
         return self.connection.pg_version >= 120000
 
     def __init__(self, connection, collect_sql=False, atomic=True):
+        # Disable atomic transactions as it can be reason of downtime or deadlock
+        # in case if you combine many operation in one migration module.
         super().__init__(connection, collect_sql=collect_sql, atomic=False)
+
+        # Avoid using DUMMY_SQL in combined alters
+        connection.features.supports_combined_alters = False
+
+        # Get settings with defaults
         self.LOCK_TIMEOUT = getattr(settings, "ZERO_DOWNTIME_MIGRATIONS_LOCK_TIMEOUT", None)
         self.STATEMENT_TIMEOUT = getattr(settings, "ZERO_DOWNTIME_MIGRATIONS_STATEMENT_TIMEOUT", None)
         self.FLEXIBLE_STATEMENT_TIMEOUT = getattr(
@@ -226,6 +263,8 @@ class DatabaseSchemaEditorMixin:
         self.RAISE_FOR_UNSAFE = getattr(settings, "ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE", False)
 
     def execute(self, sql, params=()):
+        if sql is DUMMY_SQL:
+            return
         statements = []
         if isinstance(sql, MultiStatementSQL):
             statements.extend(sql)
@@ -454,7 +493,7 @@ class DatabaseSchemaEditorMixin:
                     self._create_index_name(model._meta.db_table, [new_field.column], suffix="_notnull")
                 ),
             })
-            return None
+            return DUMMY_SQL, []
         elif self._use_pg_attribute_update_for_not_null():
             self.deferred_sql.append(self._sql_column_not_null_le_pg12_pg_attributes_for_root % {
                 "column": self.quote_name(new_field.column),
@@ -463,7 +502,7 @@ class DatabaseSchemaEditorMixin:
                     self._create_index_name(model._meta.db_table, [new_field.column], suffix="_notnull")
                 ),
             })
-            return None
+            return DUMMY_SQL, []
         elif self._use_check_constraint_for_not_null(model):
             self.deferred_sql.append(self._sql_column_not_null_compatible_le_pg12 % {
                 "column": self.quote_name(new_field.column),
@@ -472,7 +511,7 @@ class DatabaseSchemaEditorMixin:
                     self._create_index_name(model._meta.db_table, [new_field.column], suffix="_notnull")
                 ),
             })
-            return None
+            return DUMMY_SQL, []
         else:
             warnings.warn(UnsafeOperationWarning(Unsafe.ALTER_COLUMN_NOT_NULL))
             return self.sql_alter_column_not_null % {

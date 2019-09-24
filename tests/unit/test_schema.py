@@ -622,7 +622,7 @@ def test_alter_field_set_not_null__old_pg__use_pg_attribute_update__ok():
         'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_0a53d95f_notnull";',
     ] + [
         'UPDATE pg_catalog.pg_attribute SET attnotnull = TRUE '
-        'WHERE attrelid = "tests_model"::regclass::oid AND attname = "field";',
+        'WHERE attrelid = \'"tests_model"\'::regclass::oid AND attname = replace(\'"field"\', \'"\', \'\');',
     ] + timeouts(
         'ALTER TABLE "tests_model" DROP CONSTRAINT "tests_model_field_0a53d95f_notnull";'
     )
@@ -646,7 +646,7 @@ def test_alter_field_set_not_null__old_pg__use_pg_attribute_update__with_flexibl
         'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_0a53d95f_notnull";',
     ) + [
         'UPDATE pg_catalog.pg_attribute SET attnotnull = TRUE '
-        'WHERE attrelid = "tests_model"::regclass::oid AND attname = "field";',
+        'WHERE attrelid = \'"tests_model"\'::regclass::oid AND attname = replace(\'"field"\', \'"\', \'\');',
     ] + timeouts(
         'ALTER TABLE "tests_model" DROP CONSTRAINT "tests_model_field_0a53d95f_notnull";'
     )
