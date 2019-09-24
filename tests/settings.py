@@ -76,11 +76,13 @@ WSGI_APPLICATION = 'tests2.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django_zero_downtime_migrations.backends.postgres',
-        'NAME': 'postgres',
-        'USER': 'postgres',
-        'HOST': 'postgres',
-        'PORT': '5432',
+        # 'ENGINE': 'django.db.backends.postgresql',
+        'ENGINE': os.getenv('DB_ENGINE', 'django_zero_downtime_migrations.backends.postgres'),
+        'NAME': 'test',
+        'USER': os.getenv('DB_USER', 'postgres'),
+        'PASSWORD': os.getenv('DB_PASSWORD', os.getenv('DB_USER', 'postgres')),
+        'HOST': os.getenv('DB_HOST', 'localhost'),
+        'PORT': os.getenv('DB_PORT', '5432'),
     },
 }
 

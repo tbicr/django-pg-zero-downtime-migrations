@@ -10,6 +10,7 @@ from django.test import override_settings
 from django.utils.module_loading import import_string
 
 import pytest
+
 from django_zero_downtime_migrations.backends.postgres.schema import (
     UnsafeOperationException, UnsafeOperationWarning
 )
