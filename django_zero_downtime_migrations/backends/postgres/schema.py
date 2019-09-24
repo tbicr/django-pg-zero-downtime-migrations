@@ -259,6 +259,13 @@ class DatabaseSchemaEditorMixin:
         self.STATEMENT_TIMEOUT = getattr(settings, "ZERO_DOWNTIME_MIGRATIONS_STATEMENT_TIMEOUT", None)
         self.FLEXIBLE_STATEMENT_TIMEOUT = getattr(
             settings, "ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT", False)
+        if self.is_postgresql_12 and hasattr(settings, "ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL"):
+            warnings.warn(
+                'settings.ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL not applicable for postgres 12+. '
+                'Please remove this setting. If you migrated form old version, please move to NOT NULL constraint '
+                'from CHECK IS NOT NULL before with `migrate_isnotnull_check_constraints` management command.',
+                DeprecationWarning
+            )
         self.USE_NOT_NULL = getattr(settings, "ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL", None)
         self.RAISE_FOR_UNSAFE = getattr(settings, "ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE", False)
 
