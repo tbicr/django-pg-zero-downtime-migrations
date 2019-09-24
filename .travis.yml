@@ -3,5 +3,8 @@ language: python
 services:
   - docker
 
+install:
+  - pip install docker-compose
+
 script:
-  - docker build -t django_pg_zero_downtime_tests . && docker run -it django_pg_zero_downtime_tests tox
+  - docker-compose run --rm django-pg-zero-downtime-migrations-tests tox

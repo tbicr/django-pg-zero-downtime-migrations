@@ -14,6 +14,9 @@ import pytest
 from django_zero_downtime_migrations.backends.postgres.schema import (
     UnsafeOperationException, UnsafeOperationWarning
 )
+from tests import skip_for_default_django_backend
+
+pytestmark = skip_for_default_django_backend
 
 DatabaseSchemaEditor = import_string(settings.DATABASES['default']['ENGINE'] + '.schema.DatabaseSchemaEditor')
 

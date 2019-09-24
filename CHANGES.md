@@ -1,8 +1,9 @@
 # django-pg-zero-downtime-migrations changelog
 
 ## 0.6
-  - fix compatible check not null constraint deletion and creation via pg_attribute bugs
-  - minimize side affect with deferred sql execution between operations in one migration module
+  - added integration tests for pg 12, pg 11 root, pg 11 compatible not null constraint, pg 11 standard not null constraint and pg 10, 9.6, 9.5, 9.4, postgis databases
+  - fixed compatible check not null constraint deletion and creation via pg_attribute bugs
+  - minimized side affect with deferred sql execution between operations in one migration module
   - added postgres 12 safe `NOT NULL` constraint creation
   - added safe `NOT NULL` constraint creation for extra permissions for `pg_catalog.pg_attribute` with `ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=USE_PG_ATTRIBUTE_UPDATE_FOR_SUPERUSER` option enabled
   - marked `AddField` with `null=False` parameter and compatible `CHECK IS NOT NULL` constraint option as unsafe operation and avoid `ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL` value in this case

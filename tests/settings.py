@@ -50,8 +50,6 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-ROOT_URLCONF = 'tests2.urls'
-
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
@@ -86,6 +84,12 @@ DATABASES = {
     },
 }
 
+if os.getenv('NOTNULL') == 'true':
+    ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL = True
+elif os.getenv('NOTNULL') == 'false':
+    ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL = False
+elif os.getenv('NOTNULL') == 'super':
+    ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL = 'USE_PG_ATTRIBUTE_UPDATE_FOR_SUPERUSER'
 
 # Password validation
 # https://docs.djangoproject.com/en/2.0/ref/settings/#auth-password-validators
