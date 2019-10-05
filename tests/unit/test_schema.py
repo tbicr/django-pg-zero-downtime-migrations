@@ -1462,8 +1462,7 @@ def test_add_meta_conditional_index__ok():
     with cmp_schema_editor() as editor:
         editor.add_index(Model, models.Index(condition=models.Q(field1__gt=0), fields=['field1'], name='field1_idx'))
     assert editor.collected_sql == [
-        'CREATE INDEX CONCURRENTLY "field1_idx" '
-        'ON "tests_model" ("field1") WHERE "tests_model"."field1" > 0;',
+        'CREATE INDEX CONCURRENTLY "field1_idx" ON "tests_model" ("field1") WHERE "field1" > 0;',
     ]
 
 
@@ -1474,8 +1473,7 @@ def test_add_meta_conditional_multicolumn_index__ok():
         editor.add_index(Model, models.Index(condition=models.Q(field1__gt=0), fields=['field1', 'field2'],
                                              name='field1_field2_idx'))
     assert editor.collected_sql == [
-        'CREATE INDEX CONCURRENTLY "field1_field2_idx" '
-        'ON "tests_model" ("field1", "field2") WHERE "tests_model"."field1" > 0;',
+        'CREATE INDEX CONCURRENTLY "field1_field2_idx" ON "tests_model" ("field1", "field2") WHERE "field1" > 0;',
     ]
 
 
