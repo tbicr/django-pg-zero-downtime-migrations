@@ -387,7 +387,7 @@ def test_add_field_with_unique__ok():
         field = models.CharField(max_length=40, null=True, unique=True)
         field.set_attributes_from_name('field')
         editor.add_field(Model, field)
-    if django.VERSION[:2] == (2, 0):
+    if django.VERSION[:2] < (2, 1):
         assert editor.collected_sql == timeouts(
             'ALTER TABLE "tests_model" ADD COLUMN "field" varchar(40) NULL;',
         ) + [
@@ -420,7 +420,7 @@ def test_add_field_with_unique__with_flexible_timeout__ok():
         field = models.CharField(max_length=40, null=True, unique=True)
         field.set_attributes_from_name('field')
         editor.add_field(Model, field)
-    if django.VERSION[:2] == (2, 0):
+    if django.VERSION[:2] < (2, 1):
         assert editor.collected_sql == timeouts(
             'ALTER TABLE "tests_model" ADD COLUMN "field" varchar(40) NULL;',
         ) + flexible_statement_timeout(
@@ -1062,7 +1062,7 @@ def test_alter_field_add_constraint_unique__ok():
         new_field = models.CharField(max_length=40, unique=True)
         new_field.set_attributes_from_name('field')
         editor.alter_field(Model, old_field, new_field)
-    if django.VERSION[:2] == (2, 0):
+    if django.VERSION[:2] < (2, 1):
         assert editor.collected_sql == [
             'CREATE UNIQUE INDEX CONCURRENTLY tests_model_field_0a53d95f_uniq ON "tests_model" ("field");',
         ] + timeouts(
@@ -1093,7 +1093,7 @@ def test_alter_field_add_constraint_unique__with_flexible_timeout__ok():
         new_field = models.CharField(max_length=40, unique=True)
         new_field.set_attributes_from_name('field')
         editor.alter_field(Model, old_field, new_field)
-    if django.VERSION[:2] == (2, 0):
+    if django.VERSION[:2] < (2, 1):
         assert editor.collected_sql == flexible_statement_timeout(
             'CREATE UNIQUE INDEX CONCURRENTLY tests_model_field_0a53d95f_uniq ON "tests_model" ("field");',
         ) + timeouts(
@@ -1206,7 +1206,7 @@ def test_add_unique_together__ok(mocker):
     mocker.patch.object(connection, 'cursor')
     with cmp_schema_editor() as editor:
         editor.alter_unique_together(Model, [], [['field1', 'field2']])
-    if django.VERSION[:2] == (2, 0):
+    if django.VERSION[:2] < (2, 1):
         assert editor.collected_sql == [
             'CREATE UNIQUE INDEX CONCURRENTLY tests_model_field1_field2_51878e08_uniq '
             'ON "tests_model" ("field1", "field2");',
@@ -1230,7 +1230,7 @@ def test_add_unique_together__with_flexible_timeout__ok(mocker):
     mocker.patch.object(connection, 'cursor')
     with cmp_schema_editor() as editor:
         editor.alter_unique_together(Model, [], [['field1', 'field2']])
-    if django.VERSION[:2] == (2, 0):
+    if django.VERSION[:2] < (2, 1):
         assert editor.collected_sql == flexible_statement_timeout(
             'CREATE UNIQUE INDEX CONCURRENTLY tests_model_field1_field2_51878e08_uniq '
             'ON "tests_model" ("field1", "field2");',
