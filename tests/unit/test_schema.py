@@ -310,7 +310,7 @@ def test_add_field_with_not_null__use_compatible_constraint_for_all_tables__rais
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_add_field_with_foreign_key__ok():
     with cmp_schema_editor() as editor:
-        field = models.ForeignKey(Model2, null=True, on_delete=None)
+        field = models.ForeignKey(Model2, null=True, on_delete=models.CASCADE)
         field.set_attributes_from_name('field')
         editor.add_field(Model, field)
     assert editor.collected_sql == timeouts(
@@ -329,7 +329,7 @@ def test_add_field_with_foreign_key__ok():
                    ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
 def test_add_field_with_foreign_key__with_flexible_timeout__ok():
     with cmp_schema_editor() as editor:
-        field = models.ForeignKey(Model2, null=True, on_delete=None)
+        field = models.ForeignKey(Model2, null=True, on_delete=models.CASCADE)
         field.set_attributes_from_name('field')
         editor.add_field(Model, field)
     assert editor.collected_sql == timeouts(
@@ -931,7 +931,7 @@ def test_alter_filed_add_constraint_foreign_key__ok():
     with cmp_schema_editor() as editor:
         old_field = models.IntegerField()
         old_field.set_attributes_from_name('field_id')
-        new_field = models.ForeignKey(Model2, on_delete=None)
+        new_field = models.ForeignKey(Model2, on_delete=models.CASCADE)
         new_field.set_attributes_from_name('field')
         editor.alter_field(Model, old_field, new_field)
     assert editor.collected_sql == [
@@ -950,7 +950,7 @@ def test_alter_filed_add_constraint_foreign_key__with_flexible_timeout__ok():
     with cmp_schema_editor() as editor:
         old_field = models.IntegerField()
         old_field.set_attributes_from_name('field_id')
-        new_field = models.ForeignKey(Model2, on_delete=None)
+        new_field = models.ForeignKey(Model2, on_delete=models.CASCADE)
         new_field.set_attributes_from_name('field')
         editor.alter_field(Model, old_field, new_field)
     assert editor.collected_sql == flexible_statement_timeout(
@@ -979,7 +979,7 @@ def test_alter_field_drop_constraint_foreign_key__ok(mocker):
         }
     }
     with cmp_schema_editor() as editor:
-        old_field = models.ForeignKey(Model2, on_delete=None)
+        old_field = models.ForeignKey(Model2, on_delete=models.CASCADE)
         old_field.set_attributes_from_name('field')
         new_field = models.IntegerField()
         new_field.set_attributes_from_name('field_id')
