@@ -1,5 +1,8 @@
 # django-pg-zero-downtime-migrations changelog
 
+## 0.7
+  - improved tests clearness
+
 ## 0.6
   - marked `ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL` option deprecated for postgres 12+
   - added management command for migration to real `NOT NULL` from `CHECK IS NOT NULL` constraint
