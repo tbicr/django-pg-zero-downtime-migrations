@@ -6,7 +6,7 @@ from django.db import connection
 
 class Command(BaseCommand):
 
-    CHECK_CONSTRAINT_REGEXP = re.compile('^CHECK \(\((\w+) IS NOT NULL\)\)$')
+    CHECK_CONSTRAINT_REGEXP = re.compile(r'^CHECK \(\((\w+) IS NOT NULL\)\)$')
 
     def _is_postgres_12(self):
         return connection.pg_version >= 120000
