@@ -12,6 +12,6 @@ class Migration(migrations.Migration):
     operations = [
         migrations.AddConstraint(
             model_name='testtable',
-            constraint=models.CheckConstraint(check=models.Q(test_field__gt=0), name='test_check_constraint'),
+            constraint=models.CheckConstraint(check=models.Q(test_field_int__gt=0), name='test_check_constraint'),
         ),
     ]

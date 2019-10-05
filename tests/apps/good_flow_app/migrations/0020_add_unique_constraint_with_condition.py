@@ -13,7 +13,7 @@ class Migration(migrations.Migration):
         migrations.AddConstraint(
             model_name='testtable',
             constraint=models.UniqueConstraint(
-                condition=models.Q(test_field__isnull=False), fields=('test_field',), name='test_uniq_constraint'
+                condition=models.Q(test_field_int__isnull=False), fields=('test_field_int',), name='test_uniq_constraint'
             ),
         ),
     ]

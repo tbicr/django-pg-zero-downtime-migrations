@@ -12,6 +12,6 @@ class Migration(migrations.Migration):
     operations = [
         migrations.AddConstraint(
             model_name='testtable',
-            constraint=models.UniqueConstraint(fields=('test_field',), name='test_uniq_constraint'),
+            constraint=models.UniqueConstraint(fields=('test_field_int',), name='test_uniq_constraint'),
         ),
     ]

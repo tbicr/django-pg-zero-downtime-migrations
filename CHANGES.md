@@ -1,6 +1,7 @@
 # django-pg-zero-downtime-migrations changelog
 
 ## 0.7
+  - added postgres specific indexes support
   - improved tests clearness
   - fixed regexp escaping warning for management command
 

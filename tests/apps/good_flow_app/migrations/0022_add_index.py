@@ -12,6 +12,6 @@ class Migration(migrations.Migration):
     operations = [
         migrations.AddIndex(
             model_name='testtable',
-            index=models.Index(fields=['test_field'], name='test_index'),
+            index=models.Index(fields=['test_field_int'], name='test_index'),
         ),
     ]
