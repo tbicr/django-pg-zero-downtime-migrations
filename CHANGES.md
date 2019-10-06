@@ -5,6 +5,7 @@
   - improved tests clearness
   - fixed regexp escaping warning for management command
   - fixed style check
+  - improved README
 
 ## 0.6
   - marked `ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL` option deprecated for postgres 12+
