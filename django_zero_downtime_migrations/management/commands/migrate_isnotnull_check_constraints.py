@@ -142,6 +142,9 @@ class Command(BaseCommand):
             return
 
         if not force and not self._can_migrate():
-            raise CommandError('Can\'t run this command for postgres < 12 and without superuser permissions. (%s)' % connection.pg_version)
+            raise CommandError(
+                'Can\'t run this command for postgres < 12 and without superuser permissions. (%s)'
+                % connection.pg_version
+            )
 
         self._migrate(ignore, only)
