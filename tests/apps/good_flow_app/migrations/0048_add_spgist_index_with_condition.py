@@ -13,6 +13,10 @@ class Migration(migrations.Migration):
     operations = [
         migrations.AddIndex(
             model_name='testtable',
-            index=django.contrib.postgres.indexes.SpGistIndex(condition=models.Q(test_field_str__isnull=False), fields=['test_field_str'], name='test_index'),
+            index=django.contrib.postgres.indexes.SpGistIndex(
+                condition=models.Q(test_field_str__isnull=False),
+                fields=['test_field_str'],
+                name='test_index',
+            ),
         ),
     ]
