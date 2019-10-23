@@ -3,6 +3,7 @@
 ![PyPI - Django Version](https://img.shields.io/pypi/djversions/django-pg-zero-downtime-migrations.svg?label=django)
 ![Postgres Version](https://img.shields.io/badge/postgres-9.4%20|%209.5%20|%209.6%20|%2010%20|%2011%20|%2012%20-blue.svg)
 [![PyPI - License](https://img.shields.io/pypi/l/django-pg-zero-downtime-migrations.svg)](https://raw.githubusercontent.com/tbicr/django-pg-zero-downtime-migrations/master/LICENSE)
+
 [![PyPI - Downloads](https://img.shields.io/pypi/dm/django-pg-zero-downtime-migrations.svg)](https://pypistats.org/packages/django-pg-zero-downtime-migrations)
 [![GitHub last commit](https://img.shields.io/github/last-commit/tbicr/django-pg-zero-downtime-migrations/master.svg)](https://github.com/tbicr/django-pg-zero-downtime-migrations/commits/master)
 [![Build Status](https://travis-ci.org/tbicr/django-pg-zero-downtime-migrations.svg?branch=master)](https://travis-ci.org/tbicr/django-pg-zero-downtime-migrations)
@@ -41,7 +42,7 @@ To enable zero downtime migrations for postgres just setup django backend provid
 
 This backend provides same result state (except `NOT NULL` constraint replacement for old postgres versions if appropriate option configured), but different way and with additional guarantees for avoiding stuck table locks.
 
-This backend doesn't use transactions for migrations (except `RunPython` operation), because not all fixed SQL can be run in transaction and it allows to avoid deadlocks for complex migration. So when your migration will down in middle of transaction you need fix it manually (instead potential downtime).
+This backend doesn't use transactions for migrations (except `RunPython` operation), because not all SQL fixes can be run in transaction and it allows to avoid deadlocks for complex migration. So when your migration will down in middle of transaction you need fix it manually (instead potential downtime). For that reason good practice to make migration modules small as possible.
 
 ### Deployment flow
 
@@ -201,7 +202,7 @@ In this diagram we can extract several metrics:
 1. operation time - time what you spend for schema change, so there is issue for long running operation on many rows tables like `CREATE INDEX` or `ALTER TABLE ADD COLUMN SET DEFAULT`, so you need use more save equivalents instead.
 2. waiting time - your migration will wait until all transactions will be completed, so there is issue for long running operations/transactions like analytic, so you need avoid it or disable on migration time.
 3. queries per second + execution time and connections pool - if you too many queries to table and this queries take long time then this queries can just take all available connections to database until wait for release lock, so look like you need different optimizations there: run migrations when load minimal, decrease queries count and execution time, split you data.
-4. too many operations in one transaction - you have issues in all previous points for one operation so if you have many operations in one transaction then you have more chances to get this issues, so you should avoid many operations in one transactions (or event don't run it in transactions at all but you should be more careful when some operation will fail).
+4. too many operations in one transaction - you have issues in all previous points for one operation so if you have many operations in one transaction then you have more chances to get this issues, so you need avoid many operations in one transactions (or even don't run it in transactions at all but you should be more careful when some operation will fail).
 
 ### Dealing with timeouts
 
@@ -217,7 +218,7 @@ There no downtime issues for deadlocks, but too many operations in one transacti
 
 ### Rows and values storing
 
-Postgres store values of different types different ways https://www.postgresql.org/docs/current/static/storage-toast.html#STORAGE-TOAST-ONDISK. If you try to convert one type to another and it stored different way then postgres will rewrite all values. Fortunately some types stored same way and postgres need to do nothing to change type, but in some cases postgres need to check that all values have same with new type limitations.  
+Postgres store values of different types different ways. If you try to convert one type to another and it stored different way then postgres will rewrite all values. Fortunately some types stored same way and postgres need to do nothing to change type, but in some cases postgres need to check that all values have same with new type limitations, for example string length.  
 
 ### Multiversion Concurrency Control
 
@@ -225,7 +226,7 @@ Regarding documentation https://www.postgresql.org/docs/current/static/mvcc-intr
 
 ### Django migrations hacks
 
-Any schema changes can be processed with creation of new table and copy data to it, so just mark unsafe operations that don't have another safe way without downtime as `NO`.
+Any schema changes can be processed with creation of new table and copy data to it, but it can take significant time.
 
 |  # | name                                          | safe | safe alternative              | description |
 |---:|-----------------------------------------------|:----:|:-----------------------------:|-------------|
@@ -233,8 +234,8 @@ Any schema changes can be processed with creation of new table and copy data to 
 |  2 | `DROP SEQUENCE`                               | X    |                               | safe operation, because your business logic shouldn't operate with this sequence on migration time \*
 |  3 | `CREATE TABLE`                                | X    |                               | safe operation, because your business logic shouldn't operate with new table on migration time \*
 |  4 | `DROP TABLE`                                  | X    |                               | safe operation, because your business logic shouldn't operate with this table on migration time \*
-|  5 | `ALTER TABLE RENAME TO`                       |      | **NO**                        | **unsafe operation**, it's too hard write business logic that operate with two tables simultaneously, so propose `CREATE TABLE` and then copy all data to new table \*
-|  6 | `ALTER TABLE SET TABLESPACE`                  |      | **NO**                        | **unsafe operation**, but probably you don't need it at all or often \*
+|  5 | `ALTER TABLE RENAME TO`                       |      | add new table and copy data   | **unsafe operation**, it's too hard write business logic that operate with two tables simultaneously, so propose `CREATE TABLE` and then copy all data to new table \*
+|  6 | `ALTER TABLE SET TABLESPACE`                  |      | add new table and copy data   | **unsafe operation**, but probably you don't need it at all or often \*
 |  7 | `ALTER TABLE ADD COLUMN`                      | X    |                               | safe operation if without `SET NOT NULL`, `SET DEFAULT`, `PRIMARY KEY`, `UNIQUE` \*
 |  8 | `ALTER TABLE ADD COLUMN SET DEFAULT`          |      | add column and set default    | **unsafe operation**, because you spend time in migration to populate all values in table, so propose `ALTER TABLE ADD COLUMN` and then populate column and then `SET DEFAULT` \*
 |  9 | `ALTER TABLE ADD COLUMN SET NOT NULL`         |      | +/-                           | **unsafe operation**, because doesn't work without `SET DEFAULT` or after migration old code can insert rows without new column and raise exception, so propose `ALTER TABLE ADD COLUMN` and then populate column and then `ALTER TABLE ALTER COLUMN SET NOT NULL` \* and \*\*
@@ -246,7 +247,7 @@ Any schema changes can be processed with creation of new table and copy data to 
 | 15 | `ALTER TABLE ALTER COLUMN SET DEFAULT`        | X    |                               | safe operation
 | 16 | `ALTER TABLE ALTER COLUMN DROP DEFAULT`       | X    |                               | safe operation
 | 17 | `ALTER TABLE DROP COLUMN`                     | X    |                               | safe operation, because you business logic shouldn't operate with this column on migration time, however better `ALTER TABLE ALTER COLUMN DROP NOT NULL`, `ALTER TABLE DROP CONSTRAINT` and `DROP INDEX` before \* and \*\*\*\*\*
-| 18 | `ALTER TABLE RENAME COLUMN`                   |      | new column and copy           | **unsafe operation**, it's too hard write business logic that operate with two columns simultaneously, so propose `ALTER TABLE CREATE COLUMN` and then copy all data to new column \*
+| 18 | `ALTER TABLE RENAME COLUMN`                   |      | add new column and copy data  | **unsafe operation**, it's too hard write business logic that operate with two columns simultaneously, so propose `ALTER TABLE CREATE COLUMN` and then copy all data to new column \*
 | 19 | `ALTER TABLE ADD CONSTRAINT CHECK`            |      | add as not valid and validate | **unsafe operation**, because you spend time in migration to check constraint
 | 20 | `ALTER TABLE DROP CONSTRAINT` (`CHECK`)       | X    |                               | safe operation
 | 21 | `ALTER TABLE ADD CONSTRAINT FOREIGN KEY`      |      | add as not valid and validate | **unsafe operation**, because you spend time in migration to check constraint, lock two tables
@@ -270,7 +271,7 @@ Any schema changes can be processed with creation of new table and copy data to 
 
 #### Dealing with logic that should work before and after migration
 
-##### New and removing models and columns
+##### Adding and removing models and columns
 
 Migrations: `CREATE SEQUENCE`, `DROP SEQUENCE`, `CREATE TABLE`, `DROP TABLE`, `ALTER TABLE ADD COLUMN`, `ALTER TABLE DROP COLUMN`.
 

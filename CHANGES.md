@@ -1,5 +1,16 @@
 # django-pg-zero-downtime-migrations changelog
 
+## 0.7
+  - added postgres specific indexes support
+  - improved tests clearness
+  - fixed regexp escaping warning for management command
+  - fixed style check
+  - improved README
+  - marked python 3.5 support deprecated
+  - marked postgres 9.4 support deprecated
+  - marked django 2.0 support deprecated
+  - marked django 2.1 support deprecated
+
 ## 0.6
   - marked `ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL` option deprecated for postgres 12+
   - added management command for migration to real `NOT NULL` from `CHECK IS NOT NULL` constraint

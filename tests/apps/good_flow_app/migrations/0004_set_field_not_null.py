@@ -12,11 +12,11 @@ def update_objects(apps, schema_editor):
 def insert_objects_and_not_null_check(apps, schema_editor):
     db_alias = schema_editor.connection.alias
     TestTable = apps.get_model('good_flow_app', 'TestTable')
-    instance = TestTable.objects.using(db_alias).create(test_field=1)
+    instance = TestTable.objects.using(db_alias).create(test_field_int=1)
     assert instance.field == 0
     instance.delete()
     try:
-        TestTable.objects.using(db_alias).create(test_field=1, field=None)
+        TestTable.objects.using(db_alias).create(test_field_int=1, field=None)
         assert False
     except IntegrityError:
         pass

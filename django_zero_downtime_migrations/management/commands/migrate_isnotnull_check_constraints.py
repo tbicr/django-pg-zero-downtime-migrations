@@ -6,7 +6,7 @@ from django.db import connection
 
 class Command(BaseCommand):
 
-    CHECK_CONSTRAINT_REGEXP = re.compile('^CHECK \(\((\w+) IS NOT NULL\)\)$')
+    CHECK_CONSTRAINT_REGEXP = re.compile(r'^CHECK \(\((\w+) IS NOT NULL\)\)$')
 
     def _is_postgres_12(self):
         return connection.pg_version >= 120000
@@ -142,6 +142,9 @@ class Command(BaseCommand):
             return
 
         if not force and not self._can_migrate():
-            raise CommandError('Can\'t run this command for postgres < 12 and without superuser permissions. (%s)' % connection.pg_version)
+            raise CommandError(
+                'Can\'t run this command for postgres < 12 and without superuser permissions. (%s)'
+                % connection.pg_version
+            )
 
         self._migrate(ignore, only)
