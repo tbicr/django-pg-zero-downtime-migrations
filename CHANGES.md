@@ -1,5 +1,8 @@
 # django-pg-zero-downtime-migrations changelog
 
+## 0.8
+  - drop deprecated `django_zero_downtime_migrations_postgres_backend` module
+
 ## 0.7
   - added python 3.8 support
   - added postgres specific indexes support
