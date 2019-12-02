@@ -40,13 +40,12 @@ setup(
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
         'Framework :: Django',
-        'Framework :: Django :: 2.1',
         'Framework :: Django :: 2.2',
     ],
     keywords='django postgres postgresql migrations',
     packages=find_packages(exclude=['manage*', 'tests*']),
     python_requires='>=3.5',
     install_requires=[
-        'django>=2.1',
+        'django>=2.2',
     ]
 )

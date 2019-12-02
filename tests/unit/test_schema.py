@@ -2,6 +2,9 @@ from functools import partial, wraps
 
 import django
 from django.conf import settings
+from django.contrib.postgres.indexes import (
+    BrinIndex, BTreeIndex, GinIndex, GistIndex, HashIndex, SpGistIndex
+)
 from django.db import connection, models
 from django.db.backends.postgresql.schema import (
     DatabaseSchemaEditor as CoreDatabaseSchemaEditor
@@ -15,15 +18,6 @@ from django_zero_downtime_migrations.backends.postgres.schema import (
     UnsafeOperationException, UnsafeOperationWarning
 )
 from tests import skip_for_default_django_backend
-
-if django.VERSION[:2] < (2, 2):
-    from django.contrib.postgres.indexes import (
-        BrinIndex, GinIndex, GistIndex
-    )
-else:
-    from django.contrib.postgres.indexes import (
-        BrinIndex, BTreeIndex, GinIndex, GistIndex, HashIndex, SpGistIndex
-    )
 
 pytestmark = skip_for_default_django_backend
 
@@ -1517,7 +1511,6 @@ def test_remove_index_together__ok(mocker):
     ]
 
 
-@pytest.mark.skipif(django.VERSION[:2] < (2, 2), reason='functionality provided in django 2.2')
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_add_meta_check_constraint__ok():
     with cmp_schema_editor() as editor:
@@ -1533,7 +1526,6 @@ def test_add_meta_check_constraint__ok():
     ]
 
 
-@pytest.mark.skipif(django.VERSION[:2] < (2, 2), reason='functionality provided in django 2.2')
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
                    ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
 def test_add_meta_check_constraint__with_flexible_timeout__ok():
@@ -1550,7 +1542,6 @@ def test_add_meta_check_constraint__with_flexible_timeout__ok():
     ]
 
 
-@pytest.mark.skipif(django.VERSION[:2] < (2, 2), reason='functionality provided in django 2.2')
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_drop_meta_check_constraint__ok():
     with cmp_schema_editor() as editor:
@@ -1563,7 +1554,6 @@ def test_drop_meta_check_constraint__ok():
     ]
 
 
-@pytest.mark.skipif(django.VERSION[:2] < (2, 2), reason='functionality provided in django 2.2')
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_add_meta_unique_constraint__ok():
     with cmp_schema_editor() as editor:
@@ -1579,7 +1569,6 @@ def test_add_meta_unique_constraint__ok():
     ]
 
 
-@pytest.mark.skipif(django.VERSION[:2] < (2, 2), reason='functionality provided in django 2.2')
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
                    ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
 def test_add_meta_unique_constraint__with_flexible_timeout__ok():
@@ -1596,7 +1585,6 @@ def test_add_meta_unique_constraint__with_flexible_timeout__ok():
     ]
 
 
-@pytest.mark.skipif(django.VERSION[:2] < (2, 2), reason='functionality provided in django 2.2')
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_add_meta_multicolumn_unique_constraint__ok():
     with cmp_schema_editor() as editor:
@@ -1612,7 +1600,6 @@ def test_add_meta_multicolumn_unique_constraint__ok():
     ]
 
 
-@pytest.mark.skipif(django.VERSION[:2] < (2, 2), reason='functionality provided in django 2.2')
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_add_meta_conditional_unique_constraint__ok():
     with cmp_schema_editor() as editor:
@@ -1626,7 +1613,6 @@ def test_add_meta_conditional_unique_constraint__ok():
     ]
 
 
-@pytest.mark.skipif(django.VERSION[:2] < (2, 2), reason='functionality provided in django 2.2')
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_add_meta_conditional_multicolumn_unique_constraint__ok():
     with cmp_schema_editor() as editor:
@@ -1642,7 +1628,6 @@ def test_add_meta_conditional_multicolumn_unique_constraint__ok():
     ]
 
 
-@pytest.mark.skipif(django.VERSION[:2] < (2, 2), reason='functionality provided in django 2.2')
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_drop_meta_unique_constraint__ok():
     with cmp_schema_editor() as editor:
@@ -1695,7 +1680,6 @@ def test_add_meta_multicolumn_index__ok():
     ]
 
 
-@pytest.mark.skipif(django.VERSION[:2] < (2, 2), reason='functionality provided in django 2.2')
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_add_meta_conditional_index__ok():
     with cmp_schema_editor() as editor:
@@ -1708,7 +1692,6 @@ def test_add_meta_conditional_index__ok():
     ]
 
 
-@pytest.mark.skipif(django.VERSION[:2] < (2, 2), reason='functionality provided in django 2.2')
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_add_meta_conditional_multicolumn_index__ok():
     with cmp_schema_editor() as editor:
@@ -1759,7 +1742,6 @@ def test_add_meta_brin_index__with_flexible_timeout__ok():
     ]
 
 
-@pytest.mark.skipif(django.VERSION[:2] < (2, 2), reason='functionality provided in django 2.2')
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_add_meta_btree_index__ok():
     with cmp_schema_editor() as editor:
@@ -1772,7 +1754,6 @@ def test_add_meta_btree_index__ok():
     ]
 
 
-@pytest.mark.skipif(django.VERSION[:2] < (2, 2), reason='functionality provided in django 2.2')
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
                    ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
 def test_add_meta_btree_index__with_flexible_timeout__ok():
@@ -1836,7 +1817,6 @@ def test_add_meta_gist_index__with_flexible_timeout__ok():
     ]
 
 
-@pytest.mark.skipif(django.VERSION[:2] < (2, 2), reason='functionality provided in django 2.2')
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_add_meta_hash_index__ok():
     with cmp_schema_editor() as editor:
@@ -1849,7 +1829,6 @@ def test_add_meta_hash_index__ok():
     ]
 
 
-@pytest.mark.skipif(django.VERSION[:2] < (2, 2), reason='functionality provided in django 2.2')
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
                    ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
 def test_add_meta_hash_index__with_flexible_timeout__ok():
@@ -1863,7 +1842,6 @@ def test_add_meta_hash_index__with_flexible_timeout__ok():
     ]
 
 
-@pytest.mark.skipif(django.VERSION[:2] < (2, 2), reason='functionality provided in django 2.2')
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_add_meta_spgist_index__ok():
     with cmp_schema_editor() as editor:
@@ -1876,7 +1854,6 @@ def test_add_meta_spgist_index__ok():
     ]
 
 
-@pytest.mark.skipif(django.VERSION[:2] < (2, 2), reason='functionality provided in django 2.2')
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
                    ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
 def test_add_meta_spgist_index__with_flexible_timeout__ok():

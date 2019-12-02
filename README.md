@@ -110,20 +110,6 @@ Allowed values:
  
 > *NOTE:* For postgres 12 and newest `NOT NULL` constraint creation has migration replacement that provide same state as default django backend, so this option deprecated and doesn't used this postgres version. If you use `CHECK NOT NULL` compatible constraint before you can migrate it to `NOT NULL` constraints with `manage.py migrate_isnotnull_check_constraints` management command (add `INSTALLED_APPS += ['django_zero_downtime_migrations']` to `settings.py` to use management command).
 
-### Dealing with partial indexes
-
-> *NOTE:* django 2.2 support native partial index mechanism: https://docs.djangoproject.com/en/2.2/ref/models/indexes/#condition and https://docs.djangoproject.com/en/2.2/ref/models/constraints/#condition.
-
-If you using https://github.com/mattiaslinnap/django-partial-index package for partial indexes in postgres, then you can easily make this package also safe for migrations:
-
-    from django_zero_downtime_migrations_postgres_backend.schema import PGShareUpdateExclusive
-    from partial_index import PartialIndex
-
-    PartialIndex.sql_create_index['postgresql'] = PGShareUpdateExclusive(
-        'CREATE%(unique)s INDEX CONCURRENTLY %(name)s ON %(table)s%(using)s (%(columns)s)%(extra)s WHERE %(where)s',
-        disable_statement_timeout=True
-    )
-
 ## How it works
 
 ### Postgres table level locks
