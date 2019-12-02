@@ -40,9 +40,7 @@ def assert_constraints(null, check):
 
 
 @pytest.mark.skipif(
-    settings.DATABASES['default']['HOST'] not in ['pg12']
-    and settings.DATABASES['default']['USER'] != 'root'
-    or settings.DATABASES['default']['HOST'] in ['pg94'],
+    settings.DATABASES['default']['HOST'] not in ['pg12'] and settings.DATABASES['default']['USER'] != 'root',
     reason='superuser permissions required',
 )
 @pytest.mark.django_db(transaction=True)

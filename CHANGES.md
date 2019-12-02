@@ -1,6 +1,7 @@
 # django-pg-zero-downtime-migrations changelog
 
 ## 0.8
+  - drop postgres 9.4 support
   - drop deprecated `django_zero_downtime_migrations_postgres_backend` module
 
 ## 0.7

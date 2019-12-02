@@ -1,4 +1,3 @@
-from django.conf import settings
 from django.test import modify_settings, override_settings
 
 import pytest
@@ -15,10 +14,7 @@ from tests.integration import migrate
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_good_flow():
     # forward
-    if settings.DATABASES['default']['HOST'] in ['pg94']:
-        migrate(['good_flow_app', '0025'])
-    else:
-        migrate(['good_flow_app'])
+    migrate(['good_flow_app'])
 
     # backward
     migrate(['good_flow_app', 'zero'])

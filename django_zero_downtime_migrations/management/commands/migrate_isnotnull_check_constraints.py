@@ -11,8 +11,8 @@ class Command(BaseCommand):
     def _is_postgres_12(self):
         return connection.pg_version >= 120000
 
-    def _is_postgres_94(self):
-        return connection.pg_version <= 90500
+    def _is_postgres_95(self):
+        return connection.pg_version >= 90500
 
     def _can_update_pg_attribute(self):
         sql = (
@@ -28,7 +28,7 @@ class Command(BaseCommand):
             return result is not None
 
     def _can_migrate(self):
-        return self._is_postgres_12() or (not self._is_postgres_94() and self._can_update_pg_attribute())
+        return self._is_postgres_12() or (self._is_postgres_95() and self._can_update_pg_attribute())
 
     def _migrate_for_postgres_12(self, ignore, only):
         with connection.temporary_connection() as cursor:
