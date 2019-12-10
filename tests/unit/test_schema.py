@@ -19,6 +19,9 @@ from django_zero_downtime_migrations.backends.postgres.schema import (
 )
 from tests import skip_for_default_django_backend
 
+if django.VERSION[:2] >= (3, 0):
+    from django.contrib.postgres.constraints import ExclusionConstraint
+
 pytestmark = skip_for_default_django_backend
 
 DatabaseSchemaEditor = import_string(settings.DATABASES['default']['ENGINE'] + '.schema.DatabaseSchemaEditor')
@@ -385,22 +388,39 @@ def test_add_field_with_foreign_key__ok():
         field = models.ForeignKey(Model2, null=True, on_delete=models.CASCADE)
         field.set_attributes_from_name('field')
         editor.add_field(Model, field)
-    assert editor.collected_sql == timeouts(
-        'ALTER TABLE "tests_model" ADD COLUMN "field_id" integer NULL;',
-    ) + [
-        'CREATE INDEX CONCURRENTLY "tests_model_field_id_0166400c" ON "tests_model" ("field_id");',
-    ] + timeouts(
-        'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_id_0166400c_fk_tests_model2_id" '
-        'FOREIGN KEY ("field_id") REFERENCES "tests_model2" ("id") DEFERRABLE INITIALLY DEFERRED NOT VALID;',
-    ) + [
-        'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_id_0166400c_fk_tests_model2_id";',
-    ]
-    assert editor.django_sql == [
-        'ALTER TABLE "tests_model" ADD COLUMN "field_id" integer NULL;',
-        'CREATE INDEX "tests_model_field_id_0166400c" ON "tests_model" ("field_id");',
-        'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_id_0166400c_fk_tests_model2_id" '
-        'FOREIGN KEY ("field_id") REFERENCES "tests_model2" ("id") DEFERRABLE INITIALLY DEFERRED;',
-    ]
+    if django.VERSION[:2] >= (3, 0):
+        assert editor.collected_sql == timeouts(
+            'ALTER TABLE "tests_model" ADD COLUMN "field_id" integer NULL;',
+        ) + timeouts(
+            'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_id_0166400c_fk_tests_model2_id" '
+            'FOREIGN KEY ("field_id") REFERENCES "tests_model2" ("id") DEFERRABLE INITIALLY DEFERRED NOT VALID;',
+        ) + [
+            'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_id_0166400c_fk_tests_model2_id";',
+        ] + [
+            'CREATE INDEX CONCURRENTLY "tests_model_field_id_0166400c" ON "tests_model" ("field_id");',
+        ]
+        assert editor.django_sql == [
+            'ALTER TABLE "tests_model" ADD COLUMN "field_id" integer NULL '
+            'REFERENCES "tests_model2"("id") DEFERRABLE INITIALLY DEFERRED;',
+            'CREATE INDEX "tests_model_field_id_0166400c" ON "tests_model" ("field_id");',
+        ]
+    else:
+        assert editor.collected_sql == timeouts(
+            'ALTER TABLE "tests_model" ADD COLUMN "field_id" integer NULL;',
+        ) + [
+            'CREATE INDEX CONCURRENTLY "tests_model_field_id_0166400c" ON "tests_model" ("field_id");',
+        ] + timeouts(
+            'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_id_0166400c_fk_tests_model2_id" '
+            'FOREIGN KEY ("field_id") REFERENCES "tests_model2" ("id") DEFERRABLE INITIALLY DEFERRED NOT VALID;',
+        ) + [
+            'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_id_0166400c_fk_tests_model2_id";',
+        ]
+        assert editor.django_sql == [
+            'ALTER TABLE "tests_model" ADD COLUMN "field_id" integer NULL;',
+            'CREATE INDEX "tests_model_field_id_0166400c" ON "tests_model" ("field_id");',
+            'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_id_0166400c_fk_tests_model2_id" '
+            'FOREIGN KEY ("field_id") REFERENCES "tests_model2" ("id") DEFERRABLE INITIALLY DEFERRED;',
+        ]
 
 
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
@@ -410,22 +430,39 @@ def test_add_field_with_foreign_key__with_flexible_timeout__ok():
         field = models.ForeignKey(Model2, null=True, on_delete=models.CASCADE)
         field.set_attributes_from_name('field')
         editor.add_field(Model, field)
-    assert editor.collected_sql == timeouts(
-        'ALTER TABLE "tests_model" ADD COLUMN "field_id" integer NULL;',
-    ) + flexible_statement_timeout(
-        'CREATE INDEX CONCURRENTLY "tests_model_field_id_0166400c" ON "tests_model" ("field_id");',
-    ) + timeouts(
-        'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_id_0166400c_fk_tests_model2_id" '
-        'FOREIGN KEY ("field_id") REFERENCES "tests_model2" ("id") DEFERRABLE INITIALLY DEFERRED NOT VALID;',
-    ) + flexible_statement_timeout(
-        'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_id_0166400c_fk_tests_model2_id";',
-    )
-    assert editor.django_sql == [
-        'ALTER TABLE "tests_model" ADD COLUMN "field_id" integer NULL;',
-        'CREATE INDEX "tests_model_field_id_0166400c" ON "tests_model" ("field_id");',
-        'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_id_0166400c_fk_tests_model2_id" '
-        'FOREIGN KEY ("field_id") REFERENCES "tests_model2" ("id") DEFERRABLE INITIALLY DEFERRED;',
-    ]
+    if django.VERSION[:2] >= (3, 0):
+        assert editor.collected_sql == timeouts(
+            'ALTER TABLE "tests_model" ADD COLUMN "field_id" integer NULL;',
+        ) + timeouts(
+            'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_id_0166400c_fk_tests_model2_id" '
+            'FOREIGN KEY ("field_id") REFERENCES "tests_model2" ("id") DEFERRABLE INITIALLY DEFERRED NOT VALID;',
+        ) + flexible_statement_timeout(
+            'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_id_0166400c_fk_tests_model2_id";',
+        ) + flexible_statement_timeout(
+            'CREATE INDEX CONCURRENTLY "tests_model_field_id_0166400c" ON "tests_model" ("field_id");',
+        )
+        assert editor.django_sql == [
+            'ALTER TABLE "tests_model" ADD COLUMN "field_id" integer NULL '
+            'REFERENCES "tests_model2"("id") DEFERRABLE INITIALLY DEFERRED;',
+            'CREATE INDEX "tests_model_field_id_0166400c" ON "tests_model" ("field_id");',
+        ]
+    else:
+        assert editor.collected_sql == timeouts(
+            'ALTER TABLE "tests_model" ADD COLUMN "field_id" integer NULL;',
+        ) + flexible_statement_timeout(
+            'CREATE INDEX CONCURRENTLY "tests_model_field_id_0166400c" ON "tests_model" ("field_id");',
+        ) + timeouts(
+            'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_id_0166400c_fk_tests_model2_id" '
+            'FOREIGN KEY ("field_id") REFERENCES "tests_model2" ("id") DEFERRABLE INITIALLY DEFERRED NOT VALID;',
+        ) + flexible_statement_timeout(
+            'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_id_0166400c_fk_tests_model2_id";',
+        )
+        assert editor.django_sql == [
+            'ALTER TABLE "tests_model" ADD COLUMN "field_id" integer NULL;',
+            'CREATE INDEX "tests_model_field_id_0166400c" ON "tests_model" ("field_id");',
+            'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_id_0166400c_fk_tests_model2_id" '
+            'FOREIGN KEY ("field_id") REFERENCES "tests_model2" ("id") DEFERRABLE INITIALLY DEFERRED;',
+        ]
 
 
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
@@ -529,9 +566,14 @@ def test_alter_field_varchar40_to_varchar20__warning():
             new_field.set_attributes_from_name('field')
             editor.alter_field(Model, old_field, new_field)
     assert editor.collected_sql == timeouts(editor.django_sql)
-    assert editor.django_sql == [
-        'ALTER TABLE "tests_model" ALTER COLUMN "field" TYPE varchar(20) USING "field"::varchar(20);',
-    ]
+    if django.VERSION[:2] >= (3, 0):
+        assert editor.django_sql == [
+            'ALTER TABLE "tests_model" ALTER COLUMN "field" TYPE varchar(20);',
+        ]
+    else:
+        assert editor.django_sql == [
+            'ALTER TABLE "tests_model" ALTER COLUMN "field" TYPE varchar(20) USING "field"::varchar(20);',
+        ]
 
 
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
@@ -543,9 +585,14 @@ def test_alter_field_varchar40_to_varchar20_error():
             new_field = models.CharField(max_length=20)
             new_field.set_attributes_from_name('field')
             editor.alter_field(Model, old_field, new_field)
-    assert editor.django_sql == [
-        'ALTER TABLE "tests_model" ALTER COLUMN "field" TYPE varchar(20) USING "field"::varchar(20);',
-    ]
+    if django.VERSION[:2] >= (3, 0):
+        assert editor.django_sql == [
+            'ALTER TABLE "tests_model" ALTER COLUMN "field" TYPE varchar(20);',
+        ]
+    else:
+        assert editor.django_sql == [
+            'ALTER TABLE "tests_model" ALTER COLUMN "field" TYPE varchar(20) USING "field"::varchar(20);',
+        ]
 
 
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
@@ -557,9 +604,14 @@ def test_alter_field_varchar40_to_varchar80__ok():
         new_field.set_attributes_from_name('field')
         editor.alter_field(Model, old_field, new_field)
     assert editor.collected_sql == timeouts(editor.django_sql)
-    assert editor.django_sql == [
-        'ALTER TABLE "tests_model" ALTER COLUMN "field" TYPE varchar(80) USING "field"::varchar(80);',
-    ]
+    if django.VERSION[:2] >= (3, 0):
+        assert editor.django_sql == [
+            'ALTER TABLE "tests_model" ALTER COLUMN "field" TYPE varchar(80);',
+        ]
+    else:
+        assert editor.django_sql == [
+            'ALTER TABLE "tests_model" ALTER COLUMN "field" TYPE varchar(80) USING "field"::varchar(80);',
+        ]
 
 
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
@@ -585,9 +637,14 @@ def test_alter_field_decimal10_2_to_decimal5_2__warning():
             new_field.set_attributes_from_name('field')
             editor.alter_field(Model, old_field, new_field)
     assert editor.collected_sql == timeouts(editor.django_sql)
-    assert editor.django_sql == [
-        'ALTER TABLE "tests_model" ALTER COLUMN "field" TYPE numeric(5, 2) USING "field"::numeric(5, 2);',
-    ]
+    if django.VERSION[:2] >= (3, 0):
+        assert editor.django_sql == [
+            'ALTER TABLE "tests_model" ALTER COLUMN "field" TYPE numeric(5, 2);',
+        ]
+    else:
+        assert editor.django_sql == [
+            'ALTER TABLE "tests_model" ALTER COLUMN "field" TYPE numeric(5, 2) USING "field"::numeric(5, 2);',
+        ]
 
 
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
@@ -599,9 +656,14 @@ def test_alter_field_decimal10_2_to_decimal5_2__raise():
             new_field = models.DecimalField(max_digits=5, decimal_places=2)
             new_field.set_attributes_from_name('field')
             editor.alter_field(Model, old_field, new_field)
-    assert editor.django_sql == [
-        'ALTER TABLE "tests_model" ALTER COLUMN "field" TYPE numeric(5, 2) USING "field"::numeric(5, 2);',
-    ]
+    if django.VERSION[:2] >= (3, 0):
+        assert editor.django_sql == [
+            'ALTER TABLE "tests_model" ALTER COLUMN "field" TYPE numeric(5, 2);',
+        ]
+    else:
+        assert editor.django_sql == [
+            'ALTER TABLE "tests_model" ALTER COLUMN "field" TYPE numeric(5, 2) USING "field"::numeric(5, 2);',
+        ]
 
 
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
@@ -613,9 +675,14 @@ def test_alter_field_decimal10_2_to_decimal20_2__ok():
         new_field.set_attributes_from_name('field')
         editor.alter_field(Model, old_field, new_field)
     assert editor.collected_sql == timeouts(editor.django_sql)
-    assert editor.django_sql == [
-        'ALTER TABLE "tests_model" ALTER COLUMN "field" TYPE numeric(20, 2) USING "field"::numeric(20, 2);',
-    ]
+    if django.VERSION[:2] >= (3, 0):
+        assert editor.django_sql == [
+            'ALTER TABLE "tests_model" ALTER COLUMN "field" TYPE numeric(20, 2);',
+        ]
+    else:
+        assert editor.django_sql == [
+            'ALTER TABLE "tests_model" ALTER COLUMN "field" TYPE numeric(20, 2) USING "field"::numeric(20, 2);',
+        ]
 
 
 def test_alter_field_decimal10_2_to_decimal10_3__warning():
@@ -627,9 +694,14 @@ def test_alter_field_decimal10_2_to_decimal10_3__warning():
             new_field.set_attributes_from_name('field')
             editor.alter_field(Model, old_field, new_field)
     assert editor.collected_sql == timeouts(editor.django_sql)
-    assert editor.django_sql == [
-        'ALTER TABLE "tests_model" ALTER COLUMN "field" TYPE numeric(10, 3) USING "field"::numeric(10, 3);',
-    ]
+    if django.VERSION[:2] >= (3, 0):
+        assert editor.django_sql == [
+            'ALTER TABLE "tests_model" ALTER COLUMN "field" TYPE numeric(10, 3);',
+        ]
+    else:
+        assert editor.django_sql == [
+            'ALTER TABLE "tests_model" ALTER COLUMN "field" TYPE numeric(10, 3) USING "field"::numeric(10, 3);',
+        ]
 
 
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
@@ -641,9 +713,14 @@ def test_alter_field_decimal10_2_to_decimal10_3__raise():
             new_field = models.DecimalField(max_digits=10, decimal_places=3)
             new_field.set_attributes_from_name('field')
             editor.alter_field(Model, old_field, new_field)
-    assert editor.django_sql == [
-        'ALTER TABLE "tests_model" ALTER COLUMN "field" TYPE numeric(10, 3) USING "field"::numeric(10, 3);',
-    ]
+    if django.VERSION[:2] >= (3, 0):
+        assert editor.django_sql == [
+            'ALTER TABLE "tests_model" ALTER COLUMN "field" TYPE numeric(10, 3);',
+        ]
+    else:
+        assert editor.django_sql == [
+            'ALTER TABLE "tests_model" ALTER COLUMN "field" TYPE numeric(10, 3) USING "field"::numeric(10, 3);',
+        ]
 
 
 def test_alter_field_decimal10_2_to_decimal10_1__warning():
@@ -655,9 +732,14 @@ def test_alter_field_decimal10_2_to_decimal10_1__warning():
             new_field.set_attributes_from_name('field')
             editor.alter_field(Model, old_field, new_field)
     assert editor.collected_sql == timeouts(editor.django_sql)
-    assert editor.django_sql == [
-        'ALTER TABLE "tests_model" ALTER COLUMN "field" TYPE numeric(10, 1) USING "field"::numeric(10, 1);',
-    ]
+    if django.VERSION[:2] >= (3, 0):
+        assert editor.django_sql == [
+            'ALTER TABLE "tests_model" ALTER COLUMN "field" TYPE numeric(10, 1);',
+        ]
+    else:
+        assert editor.django_sql == [
+            'ALTER TABLE "tests_model" ALTER COLUMN "field" TYPE numeric(10, 1) USING "field"::numeric(10, 1);',
+        ]
 
 
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
@@ -669,9 +751,14 @@ def test_alter_field_decimal10_2_to_decimal10_1__raise():
             new_field = models.DecimalField(max_digits=10, decimal_places=1)
             new_field.set_attributes_from_name('field')
             editor.alter_field(Model, old_field, new_field)
-    assert editor.django_sql == [
-        'ALTER TABLE "tests_model" ALTER COLUMN "field" TYPE numeric(10, 1) USING "field"::numeric(10, 1);',
-    ]
+    if django.VERSION[:2] >= (3, 0):
+        assert editor.django_sql == [
+            'ALTER TABLE "tests_model" ALTER COLUMN "field" TYPE numeric(10, 1);',
+        ]
+    else:
+        assert editor.django_sql == [
+            'ALTER TABLE "tests_model" ALTER COLUMN "field" TYPE numeric(10, 1) USING "field"::numeric(10, 1);',
+        ]
 
 
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
@@ -1618,14 +1705,24 @@ def test_add_meta_conditional_multicolumn_unique_constraint__ok():
     with cmp_schema_editor() as editor:
         editor.add_constraint(Model, models.UniqueConstraint(
             fields=('field1', 'field2'), name='field1_field2_uniq', condition=models.Q(field1=models.F('field2'))))
-    assert editor.collected_sql == [
-        'CREATE UNIQUE INDEX CONCURRENTLY "field1_field2_uniq" ON "tests_model" ("field1", "field2") '
-        'WHERE "field1" = ("field2");',
-    ]
-    assert editor.django_sql == [
-        'CREATE UNIQUE INDEX "field1_field2_uniq" ON "tests_model" ("field1", "field2") '
-        'WHERE "field1" = ("field2");',
-    ]
+    if django.VERSION[:2] >= (3, 0):
+        assert editor.collected_sql == [
+            'CREATE UNIQUE INDEX CONCURRENTLY "field1_field2_uniq" ON "tests_model" ("field1", "field2") '
+            'WHERE "field1" = "field2";',
+        ]
+        assert editor.django_sql == [
+            'CREATE UNIQUE INDEX "field1_field2_uniq" ON "tests_model" ("field1", "field2") '
+            'WHERE "field1" = "field2";',
+        ]
+    else:
+        assert editor.collected_sql == [
+            'CREATE UNIQUE INDEX CONCURRENTLY "field1_field2_uniq" ON "tests_model" ("field1", "field2") '
+            'WHERE "field1" = ("field2");',
+        ]
+        assert editor.django_sql == [
+            'CREATE UNIQUE INDEX "field1_field2_uniq" ON "tests_model" ("field1", "field2") '
+            'WHERE "field1" = ("field2");',
+        ]
 
 
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
@@ -1637,6 +1734,39 @@ def test_drop_meta_unique_constraint__ok():
     )
     assert editor.django_sql == [
         'ALTER TABLE "tests_model" DROP CONSTRAINT "field1_uniq";',
+    ]
+
+
+@pytest.mark.skipif(django.VERSION[:2] < (3, 0), reason='functionality provided in django 3.0')
+def test_add_meta_exclusion_constraint__warning():
+    with pytest.warns(UnsafeOperationWarning, match='ADD CONSTRAINT EXCLUDE is unsafe operation'):
+        with cmp_schema_editor() as editor:
+            editor.add_constraint(Model, ExclusionConstraint(expressions=[('field1', '=')], name='field1_excluded'))
+    assert editor.collected_sql == editor.django_sql
+    assert editor.django_sql == [
+        'ALTER TABLE "tests_model" ADD CONSTRAINT "field1_excluded" EXCLUDE USING GIST ("field1" WITH =);',
+    ]
+
+
+@pytest.mark.skipif(django.VERSION[:2] < (3, 0), reason='functionality provided in django 3.0')
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_add_meta_exclusion_constraint__raise():
+    with pytest.raises(UnsafeOperationException, match='ADD CONSTRAINT EXCLUDE is unsafe operation'):
+        with cmp_schema_editor() as editor:
+            editor.add_constraint(Model, ExclusionConstraint(expressions=[('field1', '=')], name='field1_excluded'))
+    assert editor.django_sql == [
+        'ALTER TABLE "tests_model" ADD CONSTRAINT "field1_excluded" EXCLUDE USING GIST ("field1" WITH =);',
+    ]
+
+
+@pytest.mark.skipif(django.VERSION[:2] < (3, 0), reason='functionality provided in django 3.0')
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_drop_meta_exclusion_constraint__ok():
+    with cmp_schema_editor() as editor:
+        editor.remove_constraint(Model, ExclusionConstraint(expressions=[('field1', '=')], name='field1_excluded'))
+    assert editor.collected_sql == timeouts(editor.django_sql)
+    assert editor.django_sql == [
+        'ALTER TABLE "tests_model" DROP CONSTRAINT "field1_excluded";',
     ]
 
 
@@ -1705,6 +1835,31 @@ def test_add_meta_conditional_multicolumn_index__ok():
     ]
 
 
+@pytest.mark.skipif(django.VERSION[:2] < (3, 0), reason='functionality provided in django 3.0')
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_add_meta_index_concurrently__ok():
+    with cmp_schema_editor() as editor:
+        editor.add_index(Model, models.Index(fields=['field1'], name='tests_model_field1_9b60dc_idx'),
+                         concurrently=True)
+    assert editor.collected_sql == editor.django_sql
+    assert editor.django_sql == [
+        'CREATE INDEX CONCURRENTLY "tests_model_field1_9b60dc_idx" ON "tests_model" ("field1");'
+    ]
+
+
+@pytest.mark.skipif(django.VERSION[:2] < (3, 0), reason='functionality provided in django 3.0')
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
+                   ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
+def test_add_meta_index_concurrently__with_flexible_timeout__ok():
+    with cmp_schema_editor() as editor:
+        editor.add_index(Model, models.Index(fields=['field1'], name='tests_model_field1_9b60dc_idx'),
+                         concurrently=True)
+    assert editor.collected_sql == flexible_statement_timeout(editor.django_sql)
+    assert editor.django_sql == [
+        'CREATE INDEX CONCURRENTLY "tests_model_field1_9b60dc_idx" ON "tests_model" ("field1");'
+    ]
+
+
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_drop_meta_index__ok():
     with cmp_schema_editor() as editor:
@@ -1714,6 +1869,18 @@ def test_drop_meta_index__ok():
     ]
     assert editor.django_sql == [
         'DROP INDEX IF EXISTS "tests_model_field1_9b60dc_idx";',
+    ]
+
+
+@pytest.mark.skipif(django.VERSION[:2] < (3, 0), reason='functionality provided in django 3.0')
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_drop_meta_index_concurrently__ok():
+    with cmp_schema_editor() as editor:
+        editor.remove_index(Model, models.Index(fields=['field1'], name='tests_model_field1_9b60dc_idx'),
+                            concurrently=True)
+    assert editor.collected_sql == editor.django_sql
+    assert editor.django_sql == [
+        'DROP INDEX CONCURRENTLY IF EXISTS "tests_model_field1_9b60dc_idx";',
     ]
 
 

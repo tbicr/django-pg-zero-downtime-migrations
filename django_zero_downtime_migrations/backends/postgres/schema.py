@@ -32,6 +32,11 @@ class Unsafe:
         "See details for safe alternative "
         "https://github.com/tbicr/django-pg-zero-downtime-migrations#dealing-with-alter-table-alter-column-type"
     )
+    ADD_CONSTRAINT_EXCLUDE = (
+        "ADD CONSTRAINT EXCLUDE is unsafe operation\n"
+        "See details for safe alternative "
+        "https://github.com/tbicr/django-pg-zero-downtime-migrations#changes-for-working-logic"
+    )
     ALTER_TABLE_RENAME = (
         "ALTER TABLE RENAME is unsafe operation\n"
         "See details for save alternative "
@@ -153,6 +158,7 @@ class DatabaseSchemaEditorMixin:
     sql_rename_table = PGAccessExclusive(PostgresDatabaseSchemaEditor.sql_rename_table)
     sql_retablespace_table = PGAccessExclusive(PostgresDatabaseSchemaEditor.sql_retablespace_table)
 
+    sql_create_column_inline_fk = None
     sql_create_column = PGAccessExclusive(PostgresDatabaseSchemaEditor.sql_create_column)
     sql_alter_column = PGAccessExclusive(PostgresDatabaseSchemaEditor.sql_alter_column)
     sql_delete_column = PGAccessExclusive(PostgresDatabaseSchemaEditor.sql_delete_column)
@@ -191,11 +197,20 @@ class DatabaseSchemaEditorMixin:
         "CREATE INDEX CONCURRENTLY %(name)s ON %(table)s%(using)s (%(columns)s)%(extra)s%(condition)s",
         disable_statement_timeout=True
     )
+    if django.VERSION[:2] >= (3, 0):
+        sql_create_index_concurrently = PGShareUpdateExclusive(
+            PostgresDatabaseSchemaEditor.sql_create_index_concurrently,
+            disable_statement_timeout=True
+        )
     sql_create_unique_index = PGShareUpdateExclusive(
         "CREATE UNIQUE INDEX CONCURRENTLY %(name)s ON %(table)s (%(columns)s)%(condition)s",
         disable_statement_timeout=True
     )
     sql_delete_index = PGShareUpdateExclusive("DROP INDEX CONCURRENTLY IF EXISTS %(name)s")
+    if django.VERSION[:2] >= (3, 0):
+        sql_delete_index_concurrently = PGShareUpdateExclusive(
+            PostgresDatabaseSchemaEditor.sql_delete_index_concurrently
+        )
 
     _sql_table_count = "SELECT reltuples FROM pg_class WHERE oid = '%(table)s'::regclass"
     _sql_check_notnull_constraint = (
@@ -332,15 +347,28 @@ class DatabaseSchemaEditorMixin:
         super().alter_unique_together(model, old_unique_together, new_unique_together)
         self._flush_deferred_sql()
 
-    def add_index(self, model, index):
-        super().add_index(model, index)
+    def add_index(self, model, index, concurrently=False):
+        if django.VERSION[:2] >= (3, 0):
+            super().add_index(model, index, concurrently=concurrently)
+        else:
+            super().add_index(model, index)
         self._flush_deferred_sql()
 
-    def remove_index(self, model, index):
-        super().remove_index(model, index)
+    def remove_index(self, model, index, concurrently=False):
+        if django.VERSION[:2] >= (3, 0):
+            super().remove_index(model, index, concurrently=concurrently)
+        else:
+            super().remove_index(model, index)
         self._flush_deferred_sql()
 
     def add_constraint(self, model, constraint):
+        if django.VERSION[:2] >= (3, 0):
+            from django.contrib.postgres.constraints import ExclusionConstraint
+            if isinstance(constraint, ExclusionConstraint):
+                if self.RAISE_FOR_UNSAFE:
+                    raise UnsafeOperationException(Unsafe.ADD_CONSTRAINT_EXCLUDE)
+                else:
+                    warnings.warn(UnsafeOperationWarning(Unsafe.ADD_CONSTRAINT_EXCLUDE))
         super().add_constraint(model, constraint)
         self._flush_deferred_sql()
 

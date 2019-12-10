@@ -1,6 +1,9 @@
 # django-pg-zero-downtime-migrations changelog
 
 ## 0.8
+  - added django 3.0 support
+  - added concurrently index creation and removal operations
+  - added exclude constraint support as unsafe operation
   - drop postgres 9.4 support
   - drop django 2.0 support
   - drop django 2.1 support
