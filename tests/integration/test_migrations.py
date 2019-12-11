@@ -1,4 +1,4 @@
-from django.conf import settings
+import django
 from django.test import modify_settings, override_settings
 
 import pytest
@@ -15,13 +15,22 @@ from tests.integration import migrate
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_good_flow():
     # forward
-    if settings.DATABASES['default']['HOST'] in ['pg94']:
-        migrate(['good_flow_app', '0025'])
-    else:
-        migrate(['good_flow_app'])
+    migrate(['good_flow_app'])
 
     # backward
     migrate(['good_flow_app', 'zero'])
+
+
+@pytest.mark.skipif(django.VERSION[:2] < (3, 0), reason='functionality provided in django 3.0')
+@pytest.mark.django_db(transaction=True)
+@modify_settings(INSTALLED_APPS={'append': 'tests.apps.good_flow_app_concurrently'})
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_good_flow_create_and_drop_index_concurrently():
+    # forward
+    migrate(['good_flow_app_concurrently'])
+
+    # backward
+    migrate(['good_flow_app_concurrently', 'zero'])
 
 
 @skip_for_default_django_backend

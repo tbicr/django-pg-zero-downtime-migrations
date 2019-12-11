@@ -1,7 +1,7 @@
 [![PyPI](https://img.shields.io/pypi/v/django-pg-zero-downtime-migrations.svg)](https://pypi.org/project/django-pg-zero-downtime-migrations/)
 ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/django-pg-zero-downtime-migrations.svg)
 ![PyPI - Django Version](https://img.shields.io/pypi/djversions/django-pg-zero-downtime-migrations.svg?label=django)
-![Postgres Version](https://img.shields.io/badge/postgres-9.4%20|%209.5%20|%209.6%20|%2010%20|%2011%20|%2012%20-blue.svg)
+![Postgres Version](https://img.shields.io/badge/postgres-9.5%20|%209.6%20|%2010%20|%2011%20|%2012%20-blue.svg)
 [![PyPI - License](https://img.shields.io/pypi/l/django-pg-zero-downtime-migrations.svg)](https://raw.githubusercontent.com/tbicr/django-pg-zero-downtime-migrations/master/LICENSE)
 
 [![PyPI - Downloads](https://img.shields.io/pypi/dm/django-pg-zero-downtime-migrations.svg)](https://pypistats.org/packages/django-pg-zero-downtime-migrations)
@@ -14,8 +14,6 @@ Django postgresql backend that apply migrations with respect to database locks.
 ## Installation
 
     pip install django-pg-zero-downtime-migrations
-    
-> *NOTE:* this package works with django 2.0+.
 
 ## Usage
 
@@ -112,20 +110,6 @@ Allowed values:
  
 > *NOTE:* For postgres 12 and newest `NOT NULL` constraint creation has migration replacement that provide same state as default django backend, so this option deprecated and doesn't used this postgres version. If you use `CHECK NOT NULL` compatible constraint before you can migrate it to `NOT NULL` constraints with `manage.py migrate_isnotnull_check_constraints` management command (add `INSTALLED_APPS += ['django_zero_downtime_migrations']` to `settings.py` to use management command).
 
-### Dealing with partial indexes
-
-> *NOTE:* django 2.2 support native partial index mechanism: https://docs.djangoproject.com/en/2.2/ref/models/indexes/#condition and https://docs.djangoproject.com/en/2.2/ref/models/constraints/#condition.
-
-If you using https://github.com/mattiaslinnap/django-partial-index package for partial indexes in postgres, then you can easily make this package also safe for migrations:
-
-    from django_zero_downtime_migrations_postgres_backend.schema import PGShareUpdateExclusive
-    from partial_index import PartialIndex
-
-    PartialIndex.sql_create_index['postgresql'] = PGShareUpdateExclusive(
-        'CREATE%(unique)s INDEX CONCURRENTLY %(name)s ON %(table)s%(using)s (%(columns)s)%(extra)s WHERE %(where)s',
-        disable_statement_timeout=True
-    )
-
 ## How it works
 
 ### Postgres table level locks
@@ -152,19 +136,17 @@ Lets split this lock to migration and business logic operations.
 
 #### Migration locks
 
-| lock                     | operations                                                                                                |
-|--------------------------|-----------------------------------------------------------------------------------------------------------|
-| `ACCESS EXCLUSIVE`       | `CREATE SEQUENCE`, `DROP SEQUENCE`, `CREATE TABLE`, `DROP TABLE` \*, `ALTER TABLE` \*\*, `DROP INDEX`     |
-| `SHARE`                  | `CREATE INDEX`                                                                                            |
-| `SHARE UPDATE EXCLUSIVE` | `CREATE INDEX CONCURRENTLY`, `DROP INDEX CONCURRENTLY` \*\*\*, `ALTER TABLE VALIDATE CONSTRAINT` \*\*\*\* |
+| lock                     | operations                                                                                            |
+|--------------------------|-------------------------------------------------------------------------------------------------------|
+| `ACCESS EXCLUSIVE`       | `CREATE SEQUENCE`, `DROP SEQUENCE`, `CREATE TABLE`, `DROP TABLE` \*, `ALTER TABLE` \*\*, `DROP INDEX` |
+| `SHARE`                  | `CREATE INDEX`                                                                                        |
+| `SHARE UPDATE EXCLUSIVE` | `CREATE INDEX CONCURRENTLY`, `DROP INDEX CONCURRENTLY`, `ALTER TABLE VALIDATE CONSTRAINT` \*\*\*      |
 
 \*: `CREATE SEQUENCE`, `DROP SEQUENCE`, `CREATE TABLE`, `DROP TABLE` shouldn't have conflicts, because your business logic shouldn't yet operate with created tables and shouldn't already operate with deleted tables.
 
 \*\*: Not all `ALTER TABLE` operations take `ACCESS EXCLUSIVE` lock, but all current django's migrations take it https://github.com/django/django/blob/master/django/db/backends/base/schema.py, https://github.com/django/django/blob/master/django/db/backends/postgresql/schema.py and https://www.postgresql.org/docs/current/static/sql-altertable.html.
 
-\*\*\*: Bare django currently doesn't support `CONCURRENTLY` operations.
-
-\*\*\*\*: Django doesn't have `VALIDATE CONSTRAINT` logic, but we will use it for some cases.
+\*\*\*: Django doesn't have `VALIDATE CONSTRAINT` logic, but we will use it for some cases.
 
 #### Business logic locks
 
@@ -256,8 +238,12 @@ Any schema changes can be processed with creation of new table and copy data to 
 | 24 | `ALTER TABLE DROP CONSTRAINT` (`PRIMARY KEY`) | X    |                               | safe operation \*\*\*
 | 25 | `ALTER TABLE ADD CONSTRAINT UNIQUE`           |      | add index and add constraint  | **unsafe operation**, because you spend time in migration to create index \*\*\*
 | 26 | `ALTER TABLE DROP CONSTRAINT` (`UNIQUE`)      | X    |                               | safe operation \*\*\*
-| 27 | `CREATE INDEX`                                |      | `CREATE INDEX CONCURRENTLY`   | **unsafe operation**, because you spend time in migration to create index
-| 28 | `DROP INDEX`                                  | X    | `DROP INDEX CONCURRENTLY`     | safe operation  \*\*\*
+| 27 | `ALTER TABLE ADD CONSTRAINT EXCLUDE`          |      | add new table and copy data   |
+| 28 | `ALTER TABLE DROP CONSTRAINT (EXCLUDE)`       | X    |                               |
+| 29 | `CREATE INDEX`                                |      | `CREATE INDEX CONCURRENTLY`   | **unsafe operation**, because you spend time in migration to create index
+| 30 | `DROP INDEX`                                  | X    | `DROP INDEX CONCURRENTLY`     | safe operation  \*\*\*
+| 31 | `CREATE INDEX CONCURRENTLY`                   | X    |                               | safe operation
+| 32 | `DROP INDEX CONCURRENTLY`                     | X    |                               | safe operation  \*\*\*
 
 \*: main point with migration on production without downtime that your code should correctly work before and after migration, lets look this point closely in [Dealing with logic that should work before and after migration](#dealing-with-logic-that-should-work-before-and-after-migration) section.
 
@@ -279,7 +265,7 @@ This migrations are pretty safe, because your logic doesn't work with this data 
 
 ##### Changes for working logic
 
-Migrations: `ALTER TABLE RENAME TO`, `ALTER TABLE SET TABLESPACE`, `ALTER TABLE RENAME COLUMN`.
+Migrations: `ALTER TABLE RENAME TO`, `ALTER TABLE SET TABLESPACE`, `ALTER TABLE RENAME COLUMN`, `ALTER TABLE ADD CONSTRAINT EXCLUDE`.
 
 For this migration too hard implement logic that will work correctly for all instances, so there are two ways to dealing with it:
 
