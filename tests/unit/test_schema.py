@@ -401,7 +401,9 @@ def test_add_field_with_foreign_key__ok():
         ]
         assert editor.django_sql == [
             'ALTER TABLE "tests_model" ADD COLUMN "field_id" integer NULL '
-            'REFERENCES "tests_model2"("id") DEFERRABLE INITIALLY DEFERRED;',
+            'CONSTRAINT "tests_model_field_id_0166400c_fk_tests_model2_id" '
+            'REFERENCES "tests_model2"("id") DEFERRABLE INITIALLY DEFERRED; '
+            'SET CONSTRAINTS "tests_model_field_id_0166400c_fk_tests_model2_id" IMMEDIATE;',
             'CREATE INDEX "tests_model_field_id_0166400c" ON "tests_model" ("field_id");',
         ]
     else:
@@ -443,7 +445,9 @@ def test_add_field_with_foreign_key__with_flexible_timeout__ok():
         )
         assert editor.django_sql == [
             'ALTER TABLE "tests_model" ADD COLUMN "field_id" integer NULL '
-            'REFERENCES "tests_model2"("id") DEFERRABLE INITIALLY DEFERRED;',
+            'CONSTRAINT "tests_model_field_id_0166400c_fk_tests_model2_id" '
+            'REFERENCES "tests_model2"("id") DEFERRABLE INITIALLY DEFERRED; '
+            'SET CONSTRAINTS "tests_model_field_id_0166400c_fk_tests_model2_id" IMMEDIATE;',
             'CREATE INDEX "tests_model_field_id_0166400c" ON "tests_model" ("field_id");',
         ]
     else:
