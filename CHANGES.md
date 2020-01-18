@@ -1,5 +1,8 @@
 # django-pg-zero-downtime-migrations changelog
 
+## 0.9
+  - fixed django 3.0.2+ tests
+
 ## 0.8
   - added django 3.0 support
   - added concurrently index creation and removal operations
