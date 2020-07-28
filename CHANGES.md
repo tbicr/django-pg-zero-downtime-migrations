@@ -1,6 +1,7 @@
 # django-pg-zero-downtime-migrations changelog
 
 ## 0.9
+  - fixed decimal to float migration error
   - fixed django 3.0.2+ tests
 
 ## 0.8
