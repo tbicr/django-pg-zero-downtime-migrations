@@ -328,6 +328,7 @@ def test_add_field_with_not_null__use_compatible_constraint_for_all_tables__with
         'ALTER TABLE "tests_model" ADD COLUMN "field" varchar(40) NOT NULL;',
     ]
 
+
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
                    ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=True)
 def test_add_field_with_not_null__allowed_for_all_tables__raise():

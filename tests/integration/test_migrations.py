@@ -110,3 +110,14 @@ def test_bad_flow_change_char_type_that_unsafe():
     # forward
     with pytest.raises(UnsafeOperationException):
         migrate(['bad_flow_change_char_type_that_unsafe_app'])
+
+
+@pytest.mark.django_db(transaction=True)
+@modify_settings(INSTALLED_APPS={'append': 'tests.apps.decimal_to_float_app'})
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=False)
+def test_decimal_to_float_app():
+    # forward
+    migrate(['decimal_to_float_app'])
+
+    # backward
+    migrate(['decimal_to_float_app', 'zero'])

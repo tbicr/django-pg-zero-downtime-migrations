@@ -581,12 +581,12 @@ class DatabaseSchemaEditorMixin:
             new_type_numeric_match = self._numeric_type_regexp.match(new_type)
             old_type_precision = int(old_type_numeric_match.group("precision"))
             old_type_scale = int(old_type_numeric_match.group("scale"))
-            new_type_precision = int(new_type_numeric_match.group("precision"))
-            new_type_scale = int(new_type_numeric_match.group("scale"))
-            if new_type_precision >= old_type_precision and new_type_scale == old_type_scale:
-                return True
-            else:
+            try:
+                new_type_precision = int(new_type_numeric_match.group("precision"))
+                new_type_scale = int(new_type_numeric_match.group("scale"))
+            except AttributeError:
                 return False
+            return new_type_precision >= old_type_precision and new_type_scale == old_type_scale
         return False
 
     def _alter_column_type_sql(self, model, old_field, new_field, new_type):
