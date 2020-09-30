@@ -1,7 +1,7 @@
 [![PyPI](https://img.shields.io/pypi/v/django-pg-zero-downtime-migrations.svg)](https://pypi.org/project/django-pg-zero-downtime-migrations/)
 ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/django-pg-zero-downtime-migrations.svg)
 ![PyPI - Django Version](https://img.shields.io/pypi/djversions/django-pg-zero-downtime-migrations.svg?label=django)
-![Postgres Version](https://img.shields.io/badge/postgres-9.5%20|%209.6%20|%2010%20|%2011%20|%2012%20-blue.svg)
+![Postgres Version](https://img.shields.io/badge/postgres-9.5%20|%209.6%20|%2010%20|%2011%20|%2012%20|%2013%20-blue.svg)
 [![PyPI - License](https://img.shields.io/pypi/l/django-pg-zero-downtime-migrations.svg)](https://raw.githubusercontent.com/tbicr/django-pg-zero-downtime-migrations/master/LICENSE)
 
 [![PyPI - Downloads](https://img.shields.io/pypi/dm/django-pg-zero-downtime-migrations.svg)](https://pypistats.org/packages/django-pg-zero-downtime-migrations)

@@ -1,5 +1,11 @@
 # django-pg-zero-downtime-migrations changelog
 
+## 0.10
+  - added django 3.1 support
+  - added postgres 13 support
+  - drop python 3.5 support
+  - updated test environment
+
 ## 0.9
   - fixed decimal to float migration error
   - fixed django 3.0.2+ tests
