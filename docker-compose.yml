@@ -1,5 +1,13 @@
 version: "3.7"
 services:
+  pg13:
+    image: postgres:13-alpine
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: root
+    volumes:
+      - ./docker_postgres_init.sql:/docker-entrypoint-initdb.d/docker_postgres_init.sql
+
   pg12:
     image: postgres:12-alpine
     environment:
@@ -40,8 +48,8 @@ services:
     volumes:
       - ./docker_postgres_init.sql:/docker-entrypoint-initdb.d/docker_postgres_init.sql
 
-  postgis11:
-    image: mdillon/postgis:11-alpine
+  postgis13:
+    image: postgis/postgis:13-3.0-alpine
     environment:
       POSTGRES_USER: root
       POSTGRES_PASSWORD: root
@@ -51,11 +59,12 @@ services:
   django-pg-zero-downtime-migrations-tests:
     build: .
     depends_on:
+      - pg13
       - pg12
       - pg11
       - pg10
       - pg96
       - pg95
-      - postgis11
+      - postgis13
     volumes:
       - .:/app
