@@ -44,7 +44,7 @@ This backend doesn't use transactions for migrations (except `RunPython` operati
 
 ### Deployment flow
 
-There ara main rules for zero downtime deployment:
+There are requirements for zero downtime deployment:
 1. We have one database;
 1. We have several instances with application - application always should be available, even you restart one of instances;
 1. We have balancer before instances;
