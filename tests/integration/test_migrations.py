@@ -11,6 +11,17 @@ from tests.integration import migrate
 
 
 @pytest.mark.django_db(transaction=True)
+@modify_settings(INSTALLED_APPS={'append': 'tests.apps.good_flow_alter_table_with_same_db_table'})
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_good_flow_alter_table_with_same_db_table():
+    # forward
+    migrate(['good_flow_alter_table_with_same_db_table'])
+
+    # backward
+    migrate(['good_flow_alter_table_with_same_db_table', 'zero'])
+
+
+@pytest.mark.django_db(transaction=True)
 @modify_settings(INSTALLED_APPS={'append': 'tests.apps.good_flow_app'})
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_good_flow():
