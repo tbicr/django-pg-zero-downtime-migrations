@@ -160,6 +160,13 @@ def test_rename_model__raise():
     ]
 
 
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_rename_model_with_same_db_table__ok():
+    with cmp_schema_editor() as editor:
+        editor.alter_db_table(Model, 'same_table', 'same_table')
+    assert editor.django_sql == []
+
+
 def test_change_model_tablespace__warning():
     with cmp_schema_editor() as editor:
         with pytest.warns(UnsafeOperationWarning, match='ALTER TABLE SET TABLESPACE is unsafe operation'):
