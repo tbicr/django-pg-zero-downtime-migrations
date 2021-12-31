@@ -164,6 +164,7 @@ def test_rename_model__raise():
 def test_rename_model_with_same_db_table__ok():
     with cmp_schema_editor() as editor:
         editor.alter_db_table(Model, 'same_table', 'same_table')
+    assert editor.collected_sql == editor.django_sql
     assert editor.django_sql == []
 
 

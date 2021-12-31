@@ -7,7 +7,7 @@ RUN apt-get update
 RUN DEBIAN_FRONTEND=noninteractive apt-get install -q -y --no-install-recommends software-properties-common git
 RUN add-apt-repository ppa:deadsnakes/ppa
 RUN apt-get update
-RUN apt-get install -q -y --no-install-recommends python3.6 python3.7 python3.8 python3-pip libgdal26
+RUN apt-get install -q -y --no-install-recommends python3.6 python3.7 python3.8 python3.9 python3.10 python3-pip libgdal26
 RUN pip3 install setuptools tox
 
 ADD . /app
