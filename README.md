@@ -6,7 +6,7 @@
 
 [![PyPI - Downloads](https://img.shields.io/pypi/dm/django-pg-zero-downtime-migrations.svg)](https://pypistats.org/packages/django-pg-zero-downtime-migrations)
 [![GitHub last commit](https://img.shields.io/github/last-commit/tbicr/django-pg-zero-downtime-migrations/master.svg)](https://github.com/tbicr/django-pg-zero-downtime-migrations/commits/master)
-[![Build Status](https://travis-ci.org/tbicr/django-pg-zero-downtime-migrations.svg?branch=master)](https://travis-ci.org/tbicr/django-pg-zero-downtime-migrations)
+[![Build Status](https://github.com/tbicr/django-pg-zero-downtime-migrations/actions/workflows/check.yml/badge.svg?branch=master)](https://github.com/tbicr/django-pg-zero-downtime-migrations/actions)
 
 # django-pg-zero-downtime-migrations
 Django postgresql backend that apply migrations with respect to database locks.
