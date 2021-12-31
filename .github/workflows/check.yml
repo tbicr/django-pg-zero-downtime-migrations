@@ -1,0 +1,13 @@
+name: Check
+
+on: push
+
+jobs:
+  check:
+    name: run checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v2
+      - name: run checks
+        run: docker-compose run --rm django-pg-zero-downtime-migrations-tests tox
