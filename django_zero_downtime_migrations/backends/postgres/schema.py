@@ -389,10 +389,12 @@ class DatabaseSchemaEditorMixin:
         self._flush_deferred_sql()
 
     def alter_db_table(self, model, old_db_table, new_db_table):
-        if self.RAISE_FOR_UNSAFE:
-            raise UnsafeOperationException(Unsafe.ALTER_TABLE_RENAME)
-        else:
-            warnings.warn(UnsafeOperationWarning(Unsafe.ALTER_TABLE_RENAME))
+        # Disregard cases where db_table is unchanged
+        if old_db_table != new_db_table:
+            if self.RAISE_FOR_UNSAFE:
+                raise UnsafeOperationException(Unsafe.ALTER_TABLE_RENAME)
+            else:
+                warnings.warn(UnsafeOperationWarning(Unsafe.ALTER_TABLE_RENAME))
         super().alter_db_table(model, old_db_table, new_db_table)
         self._flush_deferred_sql()
 
