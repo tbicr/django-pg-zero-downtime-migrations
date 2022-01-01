@@ -164,6 +164,7 @@ def test_rename_model__raise():
 def test_rename_model_with_same_db_table__ok():
     with cmp_schema_editor() as editor:
         editor.alter_db_table(Model, 'same_table', 'same_table')
+    assert editor.collected_sql == editor.django_sql
     assert editor.django_sql == []
 
 
@@ -1717,7 +1718,16 @@ def test_add_meta_conditional_multicolumn_unique_constraint__ok():
     with cmp_schema_editor() as editor:
         editor.add_constraint(Model, models.UniqueConstraint(
             fields=('field1', 'field2'), name='field1_field2_uniq', condition=models.Q(field1=models.F('field2'))))
-    if django.VERSION[:2] >= (3, 0):
+    if django.VERSION[:2] >= (4, 0):
+        assert editor.collected_sql == [
+            'CREATE UNIQUE INDEX CONCURRENTLY "field1_field2_uniq" ON "tests_model" ("field1", "field2") '
+            'WHERE "field1" = ("field2");',
+        ]
+        assert editor.django_sql == [
+            'CREATE UNIQUE INDEX "field1_field2_uniq" ON "tests_model" ("field1", "field2") '
+            'WHERE "field1" = ("field2");',
+        ]
+    elif django.VERSION[:2] >= (3, 0):
         assert editor.collected_sql == [
             'CREATE UNIQUE INDEX CONCURRENTLY "field1_field2_uniq" ON "tests_model" ("field1", "field2") '
             'WHERE "field1" = "field2";',

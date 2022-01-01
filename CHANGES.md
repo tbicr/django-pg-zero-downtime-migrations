@@ -1,5 +1,21 @@
 # django-pg-zero-downtime-migrations changelog
 
+## 0.11
+  - fixed rename model with keeping `db_table` raises `ALTER_TABLE_RENAME` error #26
+  - added django 3.2 support
+  - added django 4.0 support
+  - added python 3.9 support
+  - added python 3.10 support
+  - added postgres 14 support
+  - marked django 2.2 support deprecated
+  - marked django 3.0 support deprecated
+  - marked django 3.1 support deprecated
+  - marked python 3.6 support deprecated
+  - marked python 3.7 support deprecated
+  - marked postgres 9.5 support deprecated
+  - marked postgres 9.6 support deprecated
+  - move to github actions for testing
+
 ## 0.10
   - added django 3.1 support
   - added postgres 13 support
