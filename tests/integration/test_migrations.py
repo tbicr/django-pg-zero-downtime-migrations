@@ -27,7 +27,7 @@ def test_good_flow_alter_table_with_same_db_table():
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_good_flow():
     # forward
-    if settings.DATABASES['default']['HOST'] in ['pg14']:
+    if settings.DATABASES['default']['HOST'] in ['pg14', 'postgis14']:
         # related to https://www.postgresql.org/message-id/3175925.1637428221%40sss.pgh.pa.us bug
         migrate(['good_flow_app', '0045'])
     else:
