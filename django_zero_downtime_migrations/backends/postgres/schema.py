@@ -198,6 +198,10 @@ class DatabaseSchemaEditorMixin:
         disable_statement_timeout=True
     )
     if django.VERSION[:2] >= (3, 0):
+        sql_create_index = PGShareUpdateExclusive(
+            PostgresDatabaseSchemaEditor.sql_create_index_concurrently,
+            disable_statement_timeout=True
+        )
         sql_create_index_concurrently = PGShareUpdateExclusive(
             PostgresDatabaseSchemaEditor.sql_create_index_concurrently,
             disable_statement_timeout=True
@@ -475,10 +479,21 @@ class DatabaseSchemaEditorMixin:
         # Check for fields that aren't actually columns (e.g. M2M)
         if sql is None:
             return None, None
+        # Collation.
+        collation = getattr(field, 'db_collation', None)
+        if collation:
+            sql += self._collate_sql(collation)
         # Work out nullability
         null = field.null
         # If we were told to include a default value, do so
-        include_default = include_default and not self.skip_default(field)
+        include_default = (
+            include_default and
+            not self.skip_default(field) and
+            # Don't include a default value if it's a nullable field and the
+            # default cannot be dropped in the ALTER COLUMN statement (e.g.
+            # MySQL longtext and longblob).
+            not (null and self.skip_default_on_alter(field))
+        )
         if include_default:
             default_value = self.effective_default(field)
             if default_value is not None:
