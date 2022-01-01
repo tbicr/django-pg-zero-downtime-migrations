@@ -461,7 +461,10 @@ class DatabaseSchemaEditorMixin:
         return ""
 
     def _add_column_unique(self, model, field):
-        self.deferred_sql.append(self._create_unique_sql(model, [field.column]))
+        if django.VERSION[:2] >= (4, 0):
+            self.deferred_sql.append(self._create_unique_sql(model, [field]))
+        else:
+            self.deferred_sql.append(self._create_unique_sql(model, [field.column]))
         return ""
 
     def column_sql(self, model, field, include_default=False):
