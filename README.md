@@ -228,7 +228,7 @@ Any schema changes can be processed with creation of new table and copy data to 
 | 14 | `ALTER TABLE ALTER COLUMN DROP NOT NULL`      | X    |                               | safe operation
 | 15 | `ALTER TABLE ALTER COLUMN SET DEFAULT`        | X    |                               | safe operation
 | 16 | `ALTER TABLE ALTER COLUMN DROP DEFAULT`       | X    |                               | safe operation
-| 17 | `ALTER TABLE DROP COLUMN`                     | X    |                               | safe operation, because you business logic shouldn't operate with this column on migration time, however better `ALTER TABLE ALTER COLUMN DROP NOT NULL`, `ALTER TABLE DROP CONSTRAINT` and `DROP INDEX` before \* and \*\*\*\*\*
+| 17 | `ALTER TABLE DROP COLUMN`                     | X    |                               | safe operation, because your business logic shouldn't operate with this column on migration time, however better `ALTER TABLE ALTER COLUMN DROP NOT NULL`, `ALTER TABLE DROP CONSTRAINT` and `DROP INDEX` before \* and \*\*\*\*\*
 | 18 | `ALTER TABLE RENAME COLUMN`                   |      | add new column and copy data  | **unsafe operation**, it's too hard write business logic that operate with two columns simultaneously, so propose `ALTER TABLE CREATE COLUMN` and then copy all data to new column \*
 | 19 | `ALTER TABLE ADD CONSTRAINT CHECK`            |      | add as not valid and validate | **unsafe operation**, because you spend time in migration to check constraint
 | 20 | `ALTER TABLE DROP CONSTRAINT` (`CHECK`)       | X    |                               | safe operation
