@@ -181,7 +181,7 @@ Found same diagram in interesting article http://pankrat.github.io/2015/django-m
 
 In this diagram we can extract several metrics:
 
-1. operation time - time what you spend for schema change, so there is issue for long running operation on many rows tables like `CREATE INDEX` or `ALTER TABLE ADD COLUMN SET DEFAULT`, so you need use more save equivalents instead.
+1. operation time - time what you spend for schema change, so there is issue for long running operation on many rows tables like `CREATE INDEX` or `ALTER TABLE ADD COLUMN SET DEFAULT`, so you need use safer equivalents instead.
 2. waiting time - your migration will wait until all transactions will be completed, so there is issue for long running operations/transactions like analytic, so you need avoid it or disable on migration time.
 3. queries per second + execution time and connections pool - if you too many queries to table and this queries take long time then this queries can just take all available connections to database until wait for release lock, so look like you need different optimizations there: run migrations when load minimal, decrease queries count and execution time, split you data.
 4. too many operations in one transaction - you have issues in all previous points for one operation so if you have many operations in one transaction then you have more chances to get this issues, so you need avoid many operations in one transactions (or even don't run it in transactions at all but you should be more careful when some operation will fail).
