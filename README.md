@@ -9,6 +9,7 @@
 [![Build Status](https://github.com/tbicr/django-pg-zero-downtime-migrations/actions/workflows/check.yml/badge.svg?branch=master)](https://github.com/tbicr/django-pg-zero-downtime-migrations/actions)
 
 # django-pg-zero-downtime-migrations
+
 Django postgresql backend that apply migrations with respect to database locks.
 
 ## Installation
@@ -32,9 +33,9 @@ To enable zero downtime migrations for postgres just setup django backend provid
     ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE = True
     ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL = False
 
-> *NOTE:* this backend brings zero downtime improvements only for migrations (schema and `RunSQL` operations, but not for `RunPython` operation), for other purpose it works the same as standard django backend.
+> _NOTE:_ this backend brings zero downtime improvements only for migrations (schema and `RunSQL` operations, but not for `RunPython` operation), for other purpose it works the same as standard django backend.
 
-> *NOTE:* this package is in beta, please check your migrations SQL before applying on production and submit issue for any question.
+> _NOTE:_ this package is in beta, please check your migrations SQL before applying on production and submit issue for any question.
 
 ### Differences with standard django backend
 
@@ -45,6 +46,7 @@ This backend doesn't use transactions for migrations (except `RunPython` operati
 ### Deployment flow
 
 There are requirements for zero downtime deployment:
+
 1. We have one database;
 1. We have several instances with application - application always should be available, even you restart one of instances;
 1. We have balancer before instances;
@@ -54,6 +56,7 @@ There are requirements for zero downtime deployment:
 ![deployment timeline](images/timeline.png "deployment timeline")
 
 Flow:
+
 1. apply migrations
 1. disconnect instance form balancer, restart it and back to balancer - repeat this operation one by one for all instances
 
@@ -68,20 +71,22 @@ If our deployment don't satisfy zero downtime deployment rules, then we split it
 Apply [`lock_timeout`](https://www.postgresql.org/docs/current/static/runtime-config-client.html#GUC-LOCK-TIMEOUT) for SQL statements that require `ACCESS EXCLUSIVE` lock, default `None`:
 
     ZERO_DOWNTIME_MIGRATIONS_LOCK_TIMEOUT = '2s'
-    
+
 Allowed values:
- - `None` - current postgres setting used
- - other - timeout will be applied, `0` and equivalents mean that timeout will be disabled
+
+- `None` - current postgres setting used
+- other - timeout will be applied, `0` and equivalents mean that timeout will be disabled
 
 #### ZERO_DOWNTIME_MIGRATIONS_STATEMENT_TIMEOUT
 
 Apply [`statement_timeout`](https://www.postgresql.org/docs/current/static/runtime-config-client.html#GUC-STATEMENT-TIMEOUT) for SQL statements that require `ACCESS EXCLUSIVE` lock, default `None`:
 
     ZERO_DOWNTIME_MIGRATIONS_STATEMENT_TIMEOUT = '2s'
-    
+
 Allowed values:
- - `None` - current postgres setting used
- - other - timeout will be applied, `0` and equivalents mean that timeout will be disabled
+
+- `None` - current postgres setting used
+- other - timeout will be applied, `0` and equivalents mean that timeout will be disabled
 
 #### ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT
 
@@ -102,13 +107,14 @@ Set policy for avoiding `NOT NULL` constraint creation long lock, default `None`
     ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL = 10 ** 7
 
 Allowed values:
- - `None` - standard django's behaviour (raise for `ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE = True`)
- - `True` - always replace `NOT NULL` constraint with `CHECK (field IS NOT NULL)` (don't raise for `ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE = True`)
- - `False` - always use `NOT NULL` constraint (don't raise for `ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE = True`)
- - `int` value - use `CHECK (field IS NOT NULL)` instead `NOT NULL` constraint if table has more than `value` rows (approximate rows count used) otherwise use `NOT NULL` constraint (don't raise for `ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE = True`)
- - `USE_PG_ATTRIBUTE_UPDATE_FOR_SUPERUSER` - use `pg_catalog.pg_attribute` update to mark column `NOT NULL` and provide same state as default django backend (don't raise for `ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE = True`).
- 
-> *NOTE:* For postgres 12 and newest `NOT NULL` constraint creation has migration replacement that provide same state as default django backend, so this option deprecated and doesn't used this postgres version. If you use `CHECK NOT NULL` compatible constraint before you can migrate it to `NOT NULL` constraints with `manage.py migrate_isnotnull_check_constraints` management command (add `INSTALLED_APPS += ['django_zero_downtime_migrations']` to `settings.py` to use management command).
+
+- `None` - standard django's behaviour (raise for `ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE = True`)
+- `True` - always replace `NOT NULL` constraint with `CHECK (field IS NOT NULL)` (don't raise for `ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE = True`)
+- `False` - always use `NOT NULL` constraint (don't raise for `ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE = True`)
+- `int` value - use `CHECK (field IS NOT NULL)` instead `NOT NULL` constraint if table has more than `value` rows (approximate rows count used) otherwise use `NOT NULL` constraint (don't raise for `ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE = True`)
+- `USE_PG_ATTRIBUTE_UPDATE_FOR_SUPERUSER` - use `pg_catalog.pg_attribute` update to mark column `NOT NULL` and provide same state as default django backend (don't raise for `ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE = True`).
+
+> _NOTE:_ For postgres 12 and newest `NOT NULL` constraint creation has migration replacement that provide same state as default django backend, so this option deprecated and doesn't used this postgres version. If you use `CHECK NOT NULL` compatible constraint before you can migrate it to `NOT NULL` constraints with `manage.py migrate_isnotnull_check_constraints` management command (add `INSTALLED_APPS += ['django_zero_downtime_migrations']` to `settings.py` to use management command).
 
 ## How it works
 
@@ -117,15 +123,15 @@ Allowed values:
 Postgres has different locks on table level that can conflict with each other https://www.postgresql.org/docs/current/static/explicit-locking.html#LOCKING-TABLES:
 
 |                          | `ACCESS SHARE` | `ROW SHARE` | `ROW EXCLUSIVE` | `SHARE UPDATE EXCLUSIVE` | `SHARE` | `SHARE ROW EXCLUSIVE` | `EXCLUSIVE` | `ACCESS EXCLUSIVE` |
-|--------------------------|:--------------:|:-----------:|:---------------:|:------------------------:|:-------:|:---------------------:|:-----------:|:------------------:|
-| `ACCESS SHARE`           |                |             |                 |                          |         |                       |             | X                  |
-| `ROW SHARE`              |                |             |                 |                          |         |                       | X           | X                  |
-| `ROW EXCLUSIVE`          |                |             |                 |                          | X       | X                     | X           | X                  |
-| `SHARE UPDATE EXCLUSIVE` |                |             |                 | X                        | X       | X                     | X           | X                  |
-| `SHARE`                  |                |             | X               | X                        |         | X                     | X           | X                  |
-| `SHARE ROW EXCLUSIVE`    |                |             | X               | X                        | X       | X                     | X           | X                  |
-| `EXCLUSIVE`              |                | X           | X               | X                        | X       | X                     | X           | X                  |
-| `ACCESS EXCLUSIVE`       | X              | X           | X               | X                        | X       | X                     | X           | X                  |
+| ------------------------ | :------------: | :---------: | :-------------: | :----------------------: | :-----: | :-------------------: | :---------: | :----------------: |
+| `ACCESS SHARE`           |                |             |                 |                          |         |                       |             |         X          |
+| `ROW SHARE`              |                |             |                 |                          |         |                       |      X      |         X          |
+| `ROW EXCLUSIVE`          |                |             |                 |                          |    X    |           X           |      X      |         X          |
+| `SHARE UPDATE EXCLUSIVE` |                |             |                 |            X             |    X    |           X           |      X      |         X          |
+| `SHARE`                  |                |             |        X        |            X             |         |           X           |      X      |         X          |
+| `SHARE ROW EXCLUSIVE`    |                |             |        X        |            X             |    X    |           X           |      X      |         X          |
+| `EXCLUSIVE`              |                |      X      |        X        |            X             |    X    |           X           |      X      |         X          |
+| `ACCESS EXCLUSIVE`       |       X        |      X      |        X        |            X             |    X    |           X           |      X      |         X          |
 
 ### Migration and business logic locks
 
@@ -137,7 +143,7 @@ Lets split this lock to migration and business logic operations.
 #### Migration locks
 
 | lock                     | operations                                                                                            |
-|--------------------------|-------------------------------------------------------------------------------------------------------|
+| ------------------------ | ----------------------------------------------------------------------------------------------------- |
 | `ACCESS EXCLUSIVE`       | `CREATE SEQUENCE`, `DROP SEQUENCE`, `CREATE TABLE`, `DROP TABLE` \*, `ALTER TABLE` \*\*, `DROP INDEX` |
 | `SHARE`                  | `CREATE INDEX`                                                                                        |
 | `SHARE UPDATE EXCLUSIVE` | `CREATE INDEX CONCURRENTLY`, `DROP INDEX CONCURRENTLY`, `ALTER TABLE VALIDATE CONSTRAINT` \*\*\*      |
@@ -151,7 +157,7 @@ Lets split this lock to migration and business logic operations.
 #### Business logic locks
 
 | lock            | operations                   | conflict with lock                                              | conflict with operations                    |
-|-----------------|------------------------------|-----------------------------------------------------------------|---------------------------------------------|
+| --------------- | ---------------------------- | --------------------------------------------------------------- | ------------------------------------------- |
 | `ACCESS SHARE`  | `SELECT`                     | `ACCESS EXCLUSIVE`                                              | `ALTER TABLE`, `DROP INDEX`                 |
 | `ROW SHARE`     | `SELECT FOR UPDATE`          | `ACCESS EXCLUSIVE`, `EXCLUSIVE`                                 | `ALTER TABLE`, `DROP INDEX`                 |
 | `ROW EXCLUSIVE` | `INSERT`, `UPDATE`, `DELETE` | `ACCESS EXCLUSIVE`, `EXCLUSIVE`, `SHARE ROW EXCLUSIVE`, `SHARE` | `ALTER TABLE`, `DROP INDEX`, `CREATE INDEX` |
@@ -163,15 +169,15 @@ So you can find that all django schema changes for exist table conflicts with bu
 As business logic mostly works with table rows it's also important to understand lock conflicts on row level https://www.postgresql.org/docs/current/static/explicit-locking.html#LOCKING-ROWS:
 
 | lock                | `FOR KEY SHARE` | `FOR SHARE` | `FOR NO KEY UPDATE` | `FOR UPDATE` |
-|---------------------|:---------------:|:-----------:|:-------------------:|:------------:|
-| `FOR KEY SHARE`     |                 |             |                     | X            |
-| `FOR SHARE`         |                 |             | X                   | X            |
-| `FOR NO KEY UPDATE` |                 | X           | X                   | X            |
-| `FOR UPDATE`        | X               | X           | X                   | X            |
+| ------------------- | :-------------: | :---------: | :-----------------: | :----------: |
+| `FOR KEY SHARE`     |                 |             |                     |      X       |
+| `FOR SHARE`         |                 |             |          X          |      X       |
+| `FOR NO KEY UPDATE` |                 |      X      |          X          |      X       |
+| `FOR UPDATE`        |        X        |      X      |          X          |      X       |
 
 Main point there is if you have two transactions that update one row, then second transaction will wait until first will be completed. So for business logic and data migrations better to avoid updates for whole table and use batch operations instead.
 
-> *NOTE:* batch operations also can work faster because postgres can use more optimal execution plan with indexes for small data range.
+> _NOTE:_ batch operations also can work faster because postgres can use more optimal execution plan with indexes for small data range.
 
 ### Transactions FIFO waiting
 
@@ -200,7 +206,7 @@ There no downtime issues for deadlocks, but too many operations in one transacti
 
 ### Rows and values storing
 
-Postgres store values of different types different ways. If you try to convert one type to another and it stored different way then postgres will rewrite all values. Fortunately some types stored same way and postgres need to do nothing to change type, but in some cases postgres need to check that all values have same with new type limitations, for example string length.  
+Postgres store values of different types different ways. If you try to convert one type to another and it stored different way then postgres will rewrite all values. Fortunately some types stored same way and postgres need to do nothing to change type, but in some cases postgres need to check that all values have same with new type limitations, for example string length.
 
 ### Multiversion Concurrency Control
 
@@ -210,40 +216,40 @@ Regarding documentation https://www.postgresql.org/docs/current/static/mvcc-intr
 
 Any schema changes can be processed with creation of new table and copy data to it, but it can take significant time.
 
-|  # | name                                          | safe | safe alternative              | description |
-|---:|-----------------------------------------------|:----:|:-----------------------------:|-------------|
-|  1 | `CREATE SEQUENCE`                             | X    |                               | safe operation, because your business logic shouldn't operate with new sequence on migration time \*
-|  2 | `DROP SEQUENCE`                               | X    |                               | safe operation, because your business logic shouldn't operate with this sequence on migration time \*
-|  3 | `CREATE TABLE`                                | X    |                               | safe operation, because your business logic shouldn't operate with new table on migration time \*
-|  4 | `DROP TABLE`                                  | X    |                               | safe operation, because your business logic shouldn't operate with this table on migration time \*
-|  5 | `ALTER TABLE RENAME TO`                       |      | add new table and copy data   | **unsafe operation**, it's too hard write business logic that operate with two tables simultaneously, so propose `CREATE TABLE` and then copy all data to new table \*
-|  6 | `ALTER TABLE SET TABLESPACE`                  |      | add new table and copy data   | **unsafe operation**, but probably you don't need it at all or often \*
-|  7 | `ALTER TABLE ADD COLUMN`                      | X    |                               | safe operation if without `SET NOT NULL`, `SET DEFAULT`, `PRIMARY KEY`, `UNIQUE` \*
-|  8 | `ALTER TABLE ADD COLUMN SET DEFAULT`          |      | add column and set default    | **unsafe operation**, because you spend time in migration to populate all values in table, so propose `ALTER TABLE ADD COLUMN` and then populate column and then `SET DEFAULT` \*
-|  9 | `ALTER TABLE ADD COLUMN SET NOT NULL`         |      | +/-                           | **unsafe operation**, because doesn't work without `SET DEFAULT` or after migration old code can insert rows without new column and raise exception, so propose `ALTER TABLE ADD COLUMN` and then populate column and then `ALTER TABLE ALTER COLUMN SET NOT NULL` \* and \*\*
-| 10 | `ALTER TABLE ADD COLUMN PRIMARY KEY`          |      | add index and add constraint  | **unsafe operation**, because you spend time in migration to `CREATE INDEX`, so propose `ALTER TABLE ADD COLUMN` and then `CREATE INDEX CONCURRENTLY` and then `ALTER TABLE ADD CONSTRAINT PRIMARY KEY USING INDEX` \*\*\*
-| 11 | `ALTER TABLE ADD COLUMN UNIQUE`               |      | add index and add constraint  | **unsafe operation**, because you spend time in migration to `CREATE INDEX`, so propose `ALTER TABLE ADD COLUMN` and then `CREATE INDEX CONCURRENTLY` and then `ALTER TABLE ADD CONSTRAINT UNIQUE USING INDEX` \*\*\*
-| 12 | `ALTER TABLE ALTER COLUMN TYPE`               |      | +/-                           | **unsafe operation**, because you spend time in migration to check that all items in column valid or to change type, but some operations can be safe \*\*\*\*
-| 13 | `ALTER TABLE ALTER COLUMN SET NOT NULL`       |      | +/-                           | **unsafe operation**, because you spend time in migration to check that all items in column `NOT NULL` \*\*
-| 14 | `ALTER TABLE ALTER COLUMN DROP NOT NULL`      | X    |                               | safe operation
-| 15 | `ALTER TABLE ALTER COLUMN SET DEFAULT`        | X    |                               | safe operation
-| 16 | `ALTER TABLE ALTER COLUMN DROP DEFAULT`       | X    |                               | safe operation
-| 17 | `ALTER TABLE DROP COLUMN`                     | X    |                               | safe operation, because your business logic shouldn't operate with this column on migration time, however better `ALTER TABLE ALTER COLUMN DROP NOT NULL`, `ALTER TABLE DROP CONSTRAINT` and `DROP INDEX` before \* and \*\*\*\*\*
-| 18 | `ALTER TABLE RENAME COLUMN`                   |      | add new column and copy data  | **unsafe operation**, it's too hard write business logic that operate with two columns simultaneously, so propose `ALTER TABLE CREATE COLUMN` and then copy all data to new column \*
-| 19 | `ALTER TABLE ADD CONSTRAINT CHECK`            |      | add as not valid and validate | **unsafe operation**, because you spend time in migration to check constraint
-| 20 | `ALTER TABLE DROP CONSTRAINT` (`CHECK`)       | X    |                               | safe operation
-| 21 | `ALTER TABLE ADD CONSTRAINT FOREIGN KEY`      |      | add as not valid and validate | **unsafe operation**, because you spend time in migration to check constraint, lock two tables
-| 22 | `ALTER TABLE DROP CONSTRAINT` (`FOREIGN KEY`) | X    |                               | safe operation, lock two tables
-| 23 | `ALTER TABLE ADD CONSTRAINT PRIMARY KEY`      |      | add index and add constraint  | **unsafe operation**, because you spend time in migration to create index \*\*\*
-| 24 | `ALTER TABLE DROP CONSTRAINT` (`PRIMARY KEY`) | X    |                               | safe operation \*\*\*
-| 25 | `ALTER TABLE ADD CONSTRAINT UNIQUE`           |      | add index and add constraint  | **unsafe operation**, because you spend time in migration to create index \*\*\*
-| 26 | `ALTER TABLE DROP CONSTRAINT` (`UNIQUE`)      | X    |                               | safe operation \*\*\*
-| 27 | `ALTER TABLE ADD CONSTRAINT EXCLUDE`          |      | add new table and copy data   |
-| 28 | `ALTER TABLE DROP CONSTRAINT (EXCLUDE)`       | X    |                               |
-| 29 | `CREATE INDEX`                                |      | `CREATE INDEX CONCURRENTLY`   | **unsafe operation**, because you spend time in migration to create index
-| 30 | `DROP INDEX`                                  | X    | `DROP INDEX CONCURRENTLY`     | safe operation  \*\*\*
-| 31 | `CREATE INDEX CONCURRENTLY`                   | X    |                               | safe operation
-| 32 | `DROP INDEX CONCURRENTLY`                     | X    |                               | safe operation  \*\*\*
+|   # | name                                          | safe |       safe alternative        | description                                                                                                                                                                                                                                                                    |
+| --: | --------------------------------------------- | :--: | :---------------------------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+|   1 | `CREATE SEQUENCE`                             |  X   |                               | safe operation, because your business logic shouldn't operate with new sequence on migration time \*                                                                                                                                                                           |
+|   2 | `DROP SEQUENCE`                               |  X   |                               | safe operation, because your business logic shouldn't operate with this sequence on migration time \*                                                                                                                                                                          |
+|   3 | `CREATE TABLE`                                |  X   |                               | safe operation, because your business logic shouldn't operate with new table on migration time \*                                                                                                                                                                              |
+|   4 | `DROP TABLE`                                  |  X   |                               | safe operation, because your business logic shouldn't operate with this table on migration time \*                                                                                                                                                                             |
+|   5 | `ALTER TABLE RENAME TO`                       |      |  add new table and copy data  | **unsafe operation**, it's too hard write business logic that operate with two tables simultaneously, so propose `CREATE TABLE` and then copy all data to new table \*                                                                                                         |
+|   6 | `ALTER TABLE SET TABLESPACE`                  |      |  add new table and copy data  | **unsafe operation**, but probably you don't need it at all or often \*                                                                                                                                                                                                        |
+|   7 | `ALTER TABLE ADD COLUMN`                      |  X   |                               | safe operation if without `SET NOT NULL`, `SET DEFAULT`, `PRIMARY KEY`, `UNIQUE` \*                                                                                                                                                                                            |
+|   8 | `ALTER TABLE ADD COLUMN SET DEFAULT`          |      |  add column and set default   | **unsafe operation**, because you spend time in migration to populate all values in table, so propose `ALTER TABLE ADD COLUMN` and then populate column and then `SET DEFAULT` \*                                                                                              |
+|   9 | `ALTER TABLE ADD COLUMN SET NOT NULL`         |      |              +/-              | **unsafe operation**, because doesn't work without `SET DEFAULT` or after migration old code can insert rows without new column and raise exception, so propose `ALTER TABLE ADD COLUMN` and then populate column and then `ALTER TABLE ALTER COLUMN SET NOT NULL` \* and \*\* |
+|  10 | `ALTER TABLE ADD COLUMN PRIMARY KEY`          |      | add index and add constraint  | **unsafe operation**, because you spend time in migration to `CREATE INDEX`, so propose `ALTER TABLE ADD COLUMN` and then `CREATE INDEX CONCURRENTLY` and then `ALTER TABLE ADD CONSTRAINT PRIMARY KEY USING INDEX` \*\*\*                                                     |
+|  11 | `ALTER TABLE ADD COLUMN UNIQUE`               |      | add index and add constraint  | **unsafe operation**, because you spend time in migration to `CREATE INDEX`, so propose `ALTER TABLE ADD COLUMN` and then `CREATE INDEX CONCURRENTLY` and then `ALTER TABLE ADD CONSTRAINT UNIQUE USING INDEX` \*\*\*                                                          |
+|  12 | `ALTER TABLE ALTER COLUMN TYPE`               |      |              +/-              | **unsafe operation**, because you spend time in migration to check that all items in column valid or to change type, but some operations can be safe \*\*\*\*                                                                                                                  |
+|  13 | `ALTER TABLE ALTER COLUMN SET NOT NULL`       |      |              +/-              | **unsafe operation**, because you spend time in migration to check that all items in column `NOT NULL` \*\*                                                                                                                                                                    |
+|  14 | `ALTER TABLE ALTER COLUMN DROP NOT NULL`      |  X   |                               | safe operation                                                                                                                                                                                                                                                                 |
+|  15 | `ALTER TABLE ALTER COLUMN SET DEFAULT`        |  X   |                               | safe operation                                                                                                                                                                                                                                                                 |
+|  16 | `ALTER TABLE ALTER COLUMN DROP DEFAULT`       |  X   |                               | safe operation                                                                                                                                                                                                                                                                 |
+|  17 | `ALTER TABLE DROP COLUMN`                     |  X   |                               | safe operation, because your business logic shouldn't operate with this column on migration time, however better `ALTER TABLE ALTER COLUMN DROP NOT NULL`, `ALTER TABLE DROP CONSTRAINT` and `DROP INDEX` before \* and \*\*\*\*\*                                             |
+|  18 | `ALTER TABLE RENAME COLUMN`                   |      | add new column and copy data  | **unsafe operation**, it's too hard write business logic that operate with two columns simultaneously, so propose `ALTER TABLE CREATE COLUMN` and then copy all data to new column \*                                                                                          |
+|  19 | `ALTER TABLE ADD CONSTRAINT CHECK`            |      | add as not valid and validate | **unsafe operation**, because you spend time in migration to check constraint                                                                                                                                                                                                  |
+|  20 | `ALTER TABLE DROP CONSTRAINT` (`CHECK`)       |  X   |                               | safe operation                                                                                                                                                                                                                                                                 |
+|  21 | `ALTER TABLE ADD CONSTRAINT FOREIGN KEY`      |      | add as not valid and validate | **unsafe operation**, because you spend time in migration to check constraint, lock two tables                                                                                                                                                                                 |
+|  22 | `ALTER TABLE DROP CONSTRAINT` (`FOREIGN KEY`) |  X   |                               | safe operation, lock two tables                                                                                                                                                                                                                                                |
+|  23 | `ALTER TABLE ADD CONSTRAINT PRIMARY KEY`      |      | add index and add constraint  | **unsafe operation**, because you spend time in migration to create index \*\*\*                                                                                                                                                                                               |
+|  24 | `ALTER TABLE DROP CONSTRAINT` (`PRIMARY KEY`) |  X   |                               | safe operation \*\*\*                                                                                                                                                                                                                                                          |
+|  25 | `ALTER TABLE ADD CONSTRAINT UNIQUE`           |      | add index and add constraint  | **unsafe operation**, because you spend time in migration to create index \*\*\*                                                                                                                                                                                               |
+|  26 | `ALTER TABLE DROP CONSTRAINT` (`UNIQUE`)      |  X   |                               | safe operation \*\*\*                                                                                                                                                                                                                                                          |
+|  27 | `ALTER TABLE ADD CONSTRAINT EXCLUDE`          |      |  add new table and copy data  |
+|  28 | `ALTER TABLE DROP CONSTRAINT (EXCLUDE)`       |  X   |                               |
+|  29 | `CREATE INDEX`                                |      |  `CREATE INDEX CONCURRENTLY`  | **unsafe operation**, because you spend time in migration to create index                                                                                                                                                                                                      |
+|  30 | `DROP INDEX`                                  |  X   |   `DROP INDEX CONCURRENTLY`   | safe operation \*\*\*                                                                                                                                                                                                                                                          |
+|  31 | `CREATE INDEX CONCURRENTLY`                   |  X   |                               | safe operation                                                                                                                                                                                                                                                                 |
+|  32 | `DROP INDEX CONCURRENTLY`                     |  X   |                               | safe operation \*\*\*                                                                                                                                                                                                                                                          |
 
 \*: main point with migration on production without downtime that your code should correctly work before and after migration, lets look this point closely in [Dealing with logic that should work before and after migration](#dealing-with-logic-that-should-work-before-and-after-migration) section.
 
@@ -253,7 +259,7 @@ Any schema changes can be processed with creation of new table and copy data to 
 
 \*\*\*\*: lets look this point closely in [Dealing with `ALTER TABLE ALTER COLUMN TYPE`](#dealing-with-alter-table-alter-column-type) section.
 
-\*\*\*\*\*: if you check migration on CI with `python manage.py makemigrations --check` you can't drop column in code without migration creation, so in this case you can be useful *back migration flow*: apply code on all instances and then migrate database
+\*\*\*\*\*: if you check migration on CI with `python manage.py makemigrations --check` you can't drop column in code without migration creation, so in this case you can be useful _back migration flow_: apply code on all instances and then migrate database
 
 #### Dealing with logic that should work before and after migration
 
