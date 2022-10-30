@@ -1,6 +1,11 @@
 # django-pg-zero-downtime-migrations changelog
 
 ## 0.12
+  - drop django 2.2 support
+  - drop django 3.0 support
+  - drop django 3.1 support
+  - drop postgres 9.5 support
+  - drop postgres 9.6 support
   - add github actions checks for pull requests
 
 ## 0.11

@@ -1,4 +1,3 @@
-import django
 from django.conf import settings
 from django.test import modify_settings, override_settings
 
@@ -37,7 +36,6 @@ def test_good_flow():
     migrate(['good_flow_app', 'zero'])
 
 
-@pytest.mark.skipif(django.VERSION[:2] < (3, 0), reason='functionality provided in django 3.0')
 @pytest.mark.django_db(transaction=True)
 @modify_settings(INSTALLED_APPS={'append': 'tests.apps.good_flow_app_concurrently'})
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
