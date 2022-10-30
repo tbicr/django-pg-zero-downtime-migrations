@@ -1,5 +1,8 @@
 # django-pg-zero-downtime-migrations changelog
 
+## 0.12
+  - add github actions checks for pull requests
+
 ## 0.11
   - fixed rename model with keeping `db_table` raises `ALTER_TABLE_RENAME` error #26
   - added django 3.2 support
