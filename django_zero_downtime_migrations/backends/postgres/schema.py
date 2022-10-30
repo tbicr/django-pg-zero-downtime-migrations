@@ -150,7 +150,8 @@ class DatabaseSchemaEditorMixin:
     sql_set_lock_timeout = "SET lock_timeout TO '%(lock_timeout)s'"
     sql_set_statement_timeout = "SET statement_timeout TO '%(statement_timeout)s'"
 
-    sql_create_sequence = PGAccessExclusive(PostgresDatabaseSchemaEditor.sql_create_sequence, use_timeouts=False)
+    if django.VERSION[:2] < (4, 1):
+        sql_create_sequence = PGAccessExclusive(PostgresDatabaseSchemaEditor.sql_create_sequence, use_timeouts=False)
     sql_delete_sequence = PGAccessExclusive(PostgresDatabaseSchemaEditor.sql_delete_sequence, use_timeouts=False)
     sql_create_table = PGAccessExclusive(PostgresDatabaseSchemaEditor.sql_create_table, use_timeouts=False)
     sql_delete_table = PGAccessExclusive(PostgresDatabaseSchemaEditor.sql_delete_table, use_timeouts=False)
