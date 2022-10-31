@@ -48,5 +48,5 @@ def assert_constraints(null, check):
 def test_migrate_isnotnull_check_constraints():
     migrate()
     assert_constraints(null=0, check=1)
-    run_management_command(['--force'] if settings.DATABASES['default']['HOST'] in ['pg95'] else None)
+    run_management_command()
     assert_constraints(null=1, check=0)

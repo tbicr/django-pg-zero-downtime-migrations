@@ -40,22 +40,6 @@ services:
     volumes:
       - ./docker_postgres_init.sql:/docker-entrypoint-initdb.d/docker_postgres_init.sql
 
-  pg96:
-    image: postgres:9.6-alpine
-    environment:
-      POSTGRES_USER: root
-      POSTGRES_PASSWORD: root
-    volumes:
-      - ./docker_postgres_init.sql:/docker-entrypoint-initdb.d/docker_postgres_init.sql
-
-  pg95:
-    image: postgres:9.5-alpine
-    environment:
-      POSTGRES_USER: root
-      POSTGRES_PASSWORD: root
-    volumes:
-      - ./docker_postgres_init.sql:/docker-entrypoint-initdb.d/docker_postgres_init.sql
-
   postgis14:
     image: postgis/postgis:14-3.2-alpine
     environment:
@@ -72,8 +56,6 @@ services:
       - pg12
       - pg11
       - pg10
-      - pg96
-      - pg95
       - postgis14
     volumes:
       - .:/app

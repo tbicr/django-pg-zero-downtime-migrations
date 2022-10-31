@@ -4,6 +4,7 @@ from contextlib import contextmanager
 
 import django
 from django.conf import settings
+from django.contrib.postgres.constraints import ExclusionConstraint
 from django.db.backends.ddl_references import Statement
 from django.db.backends.postgresql.schema import (
     DatabaseSchemaEditor as PostgresDatabaseSchemaEditor
@@ -194,27 +195,21 @@ class DatabaseSchemaEditorMixin:
     sql_delete_pk = PGAccessExclusive(PostgresDatabaseSchemaEditor.sql_delete_pk)
 
     sql_create_index = PGShareUpdateExclusive(
-        "CREATE INDEX CONCURRENTLY %(name)s ON %(table)s%(using)s (%(columns)s)%(extra)s%(condition)s",
+        PostgresDatabaseSchemaEditor.sql_create_index_concurrently,
         disable_statement_timeout=True
     )
-    if django.VERSION[:2] >= (3, 0):
-        sql_create_index = PGShareUpdateExclusive(
-            PostgresDatabaseSchemaEditor.sql_create_index_concurrently,
-            disable_statement_timeout=True
-        )
-        sql_create_index_concurrently = PGShareUpdateExclusive(
-            PostgresDatabaseSchemaEditor.sql_create_index_concurrently,
-            disable_statement_timeout=True
-        )
+    sql_create_index_concurrently = PGShareUpdateExclusive(
+        PostgresDatabaseSchemaEditor.sql_create_index_concurrently,
+        disable_statement_timeout=True
+    )
     sql_create_unique_index = PGShareUpdateExclusive(
         "CREATE UNIQUE INDEX CONCURRENTLY %(name)s ON %(table)s (%(columns)s)%(condition)s",
         disable_statement_timeout=True
     )
     sql_delete_index = PGShareUpdateExclusive("DROP INDEX CONCURRENTLY IF EXISTS %(name)s")
-    if django.VERSION[:2] >= (3, 0):
-        sql_delete_index_concurrently = PGShareUpdateExclusive(
-            PostgresDatabaseSchemaEditor.sql_delete_index_concurrently
-        )
+    sql_delete_index_concurrently = PGShareUpdateExclusive(
+        PostgresDatabaseSchemaEditor.sql_delete_index_concurrently
+    )
 
     _sql_table_count = "SELECT reltuples FROM pg_class WHERE oid = '%(table)s'::regclass"
     _sql_check_notnull_constraint = (
@@ -352,27 +347,19 @@ class DatabaseSchemaEditorMixin:
         self._flush_deferred_sql()
 
     def add_index(self, model, index, concurrently=False):
-        if django.VERSION[:2] >= (3, 0):
-            super().add_index(model, index, concurrently=concurrently)
-        else:
-            super().add_index(model, index)
+        super().add_index(model, index, concurrently=concurrently)
         self._flush_deferred_sql()
 
     def remove_index(self, model, index, concurrently=False):
-        if django.VERSION[:2] >= (3, 0):
-            super().remove_index(model, index, concurrently=concurrently)
-        else:
-            super().remove_index(model, index)
+        super().remove_index(model, index, concurrently=concurrently)
         self._flush_deferred_sql()
 
     def add_constraint(self, model, constraint):
-        if django.VERSION[:2] >= (3, 0):
-            from django.contrib.postgres.constraints import ExclusionConstraint
-            if isinstance(constraint, ExclusionConstraint):
-                if self.RAISE_FOR_UNSAFE:
-                    raise UnsafeOperationException(Unsafe.ADD_CONSTRAINT_EXCLUDE)
-                else:
-                    warnings.warn(UnsafeOperationWarning(Unsafe.ADD_CONSTRAINT_EXCLUDE))
+        if isinstance(constraint, ExclusionConstraint):
+            if self.RAISE_FOR_UNSAFE:
+                raise UnsafeOperationException(Unsafe.ADD_CONSTRAINT_EXCLUDE)
+            else:
+                warnings.warn(UnsafeOperationWarning(Unsafe.ADD_CONSTRAINT_EXCLUDE))
         super().add_constraint(model, constraint)
         self._flush_deferred_sql()
 
@@ -466,14 +453,6 @@ class DatabaseSchemaEditorMixin:
         else:
             self.deferred_sql.append(self._create_unique_sql(model, [field.column]))
         return ""
-
-    if django.VERSION[:2] < (3, 2):
-        def skip_default_on_alter(self, field):
-            """
-            Some backends don't accept default values for certain columns types
-            (i.e. MySQL longtext and longblob) in the ALTER COLUMN statement.
-            """
-            return False
 
     def column_sql(self, model, field, include_default=False):
         """
