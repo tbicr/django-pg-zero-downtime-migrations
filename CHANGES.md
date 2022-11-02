@@ -1,6 +1,13 @@
 # django-pg-zero-downtime-migrations changelog
 
 ## 0.12
+  - added `serial` and `integer`, `bigserial` and `bigint`, `smallserial` and `smallint`, same types changes as safe migrations
+  - fixed `AutoField` type changing and concurrent insertions issue for `django<4.1`
+  - added sequence dropping and creation timeouts as they can be used with `CASCADE` keyword and affect other tables
+  - added django 4.1 support
+  - added python 3.11 support
+  - added postgres 15 support
+  - marked postgres 10 support deprecated
   - drop django 2.2 support
   - drop django 3.0 support
   - drop django 3.1 support

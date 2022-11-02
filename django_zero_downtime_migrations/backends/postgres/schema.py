@@ -9,6 +9,7 @@ from django.db.backends.ddl_references import Statement
 from django.db.backends.postgresql.schema import (
     DatabaseSchemaEditor as PostgresDatabaseSchemaEditor
 )
+from django.db.backends.utils import strip_quotes
 from django.utils.functional import cached_property
 
 
@@ -151,8 +152,15 @@ class DatabaseSchemaEditorMixin:
     sql_set_lock_timeout = "SET lock_timeout TO '%(lock_timeout)s'"
     sql_set_statement_timeout = "SET statement_timeout TO '%(statement_timeout)s'"
 
-    sql_create_sequence = PGAccessExclusive(PostgresDatabaseSchemaEditor.sql_create_sequence, use_timeouts=False)
-    sql_delete_sequence = PGAccessExclusive(PostgresDatabaseSchemaEditor.sql_delete_sequence, use_timeouts=False)
+    if django.VERSION[:2] >= (4, 1):
+        sql_alter_sequence_type = PGAccessExclusive(PostgresDatabaseSchemaEditor.sql_alter_sequence_type)
+        sql_add_identity = PGAccessExclusive(PostgresDatabaseSchemaEditor.sql_add_identity)
+        sql_drop_indentity = PGAccessExclusive(PostgresDatabaseSchemaEditor.sql_drop_indentity)
+    else:
+        sql_alter_sequence_type = PGAccessExclusive("ALTER SEQUENCE IF EXISTS %(sequence)s AS %(type)s")
+        sql_create_sequence = PGAccessExclusive(PostgresDatabaseSchemaEditor.sql_create_sequence)
+        sql_set_sequence_owner = PGAccessExclusive(PostgresDatabaseSchemaEditor.sql_set_sequence_owner)
+    sql_delete_sequence = PGAccessExclusive(PostgresDatabaseSchemaEditor.sql_delete_sequence)
     sql_create_table = PGAccessExclusive(PostgresDatabaseSchemaEditor.sql_create_table, use_timeouts=False)
     sql_delete_table = PGAccessExclusive(PostgresDatabaseSchemaEditor.sql_delete_table, use_timeouts=False)
 
@@ -571,6 +579,16 @@ class DatabaseSchemaEditorMixin:
             return self._alter_column_set_not_null(model, new_field)
 
     def _immediate_type_cast(self, old_type, new_type):
+        if (
+            (old_type == new_type) or
+            (old_type == 'integer' and new_type == 'serial') or
+            (old_type == 'bigint' and new_type == 'bigserial') or
+            (old_type == 'smallint' and new_type == 'smallserial') or
+            (old_type == 'serial' and new_type == 'integer') or
+            (old_type == 'bigserial' and new_type == 'bigint') or
+            (old_type == 'smallserial' and new_type == 'smallint')
+        ):
+            return True
         old_type_varchar_match = self._varchar_type_regexp.match(old_type)
         if old_type_varchar_match:
             if new_type == "text":
@@ -596,6 +614,14 @@ class DatabaseSchemaEditorMixin:
             return new_type_precision >= old_type_precision and new_type_scale == old_type_scale
         return False
 
+    if django.VERSION[:2] < (4, 1):
+        def _get_sequence_name(self, table, column):
+            with self.connection.cursor() as cursor:
+                for sequence in self.connection.introspection.get_sequences(cursor, table):
+                    if sequence["column"] == column:
+                        return sequence["name"]
+            return None
+
     def _alter_column_type_sql(self, model, old_field, new_field, new_type):
         old_db_params = old_field.db_parameters(connection=self.connection)
         old_type = old_db_params["type"]
@@ -604,6 +630,50 @@ class DatabaseSchemaEditorMixin:
                 raise UnsafeOperationException(Unsafe.ALTER_COLUMN_TYPE)
             else:
                 warnings.warn(UnsafeOperationWarning(Unsafe.ALTER_COLUMN_TYPE))
+        if django.VERSION[:2] < (4, 1):
+            # old django versions runs in transaction next queries for autofield type changes:
+            # - alter column type
+            # - drop sequence with old type
+            # - create sequence with new type
+            # - alter column set default
+            # - set sequence current value
+            # - set sequence to field
+            # if we run this queries without transaction
+            # then concurrent insertions between drop sequence and end of migration can fail
+            # so simplify migration to two safe steps: alter colum type and alter sequence type
+            serial_fields_map = {
+                "bigserial": "bigint",
+                "serial": "integer",
+                "smallserial": "smallint",
+            }
+            if new_type.lower() in serial_fields_map:
+                column = strip_quotes(new_field.column)
+                table = strip_quotes(model._meta.db_table)
+                sequence_name = self._get_sequence_name(table, column)
+                if sequence_name is not None:
+                    using_sql = ""
+                    if self._field_data_type(old_field) != self._field_data_type(new_field):
+                        using_sql = " USING %(column)s::%(type)s"
+                    return (
+                        (
+                            (self.sql_alter_column_type + using_sql)
+                            % {
+                                "column": self.quote_name(column),
+                                "type": serial_fields_map[new_type.lower()],
+                            },
+                            [],
+                        ),
+                        [
+                            (
+                                self.sql_alter_sequence_type
+                                % {
+                                    "sequence": self.quote_name(sequence_name),
+                                    "type": serial_fields_map[new_type.lower()],
+                                },
+                                [],
+                            ),
+                        ],
+                    )
         return super()._alter_column_type_sql(model, old_field, new_field, new_type)
 
 
