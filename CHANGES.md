@@ -1,6 +1,7 @@
 # django-pg-zero-downtime-migrations changelog
 
 ## 0.13
+  - drop postgres 10 support
   - updated test docker image to ubuntu 22.04
 
 ## 0.12
