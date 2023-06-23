@@ -1,5 +1,8 @@
 # django-pg-zero-downtime-migrations changelog
 
+## 0.13
+  - updated test docker image to ubuntu 22.04
+
 ## 0.12
   - added `serial` and `integer`, `bigserial` and `bigint`, `smallserial` and `smallint`, same types changes as safe migrations
   - fixed `AutoField` type changing and concurrent insertions issue for `django<4.1`
