@@ -219,6 +219,10 @@ class DatabaseSchemaEditorMixin:
         PostgresDatabaseSchemaEditor.sql_delete_index_concurrently
     )
 
+    if django.VERSION[:2] >= (4, 2):
+        sql_alter_table_comment = PGShareUpdateExclusive(PostgresDatabaseSchemaEditor.sql_alter_table_comment)
+        sql_alter_column_comment = PGShareUpdateExclusive(PostgresDatabaseSchemaEditor.sql_alter_column_comment)
+
     _sql_table_count = "SELECT reltuples FROM pg_class WHERE oid = '%(table)s'::regclass"
     _sql_check_notnull_constraint = (
         "SELECT conname FROM pg_constraint "
@@ -403,6 +407,10 @@ class DatabaseSchemaEditorMixin:
         else:
             warnings.warn(UnsafeOperationWarning(Unsafe.ALTER_TABLE_SET_TABLESPACE))
         super().alter_db_tablespace(model, old_db_tablespace, new_db_tablespace)
+        self._flush_deferred_sql()
+
+    def alter_db_table_comment(self, model, old_db_table_comment, new_db_table_comment):
+        super().alter_db_table_comment(model, old_db_table_comment, new_db_table_comment)
         self._flush_deferred_sql()
 
     def _rename_field_sql(self, table, old_field, new_field, new_type):
@@ -622,7 +630,8 @@ class DatabaseSchemaEditorMixin:
                         return sequence["name"]
             return None
 
-    def _alter_column_type_sql(self, model, old_field, new_field, new_type):
+    # TODO: after django 4.1 support drop replace *args, **kwargs with original signature
+    def _alter_column_type_sql(self, model, old_field, new_field, new_type, *args, **kwargs):
         old_db_params = old_field.db_parameters(connection=self.connection)
         old_type = old_db_params["type"]
         if not self._immediate_type_cast(old_type, new_type):
@@ -674,7 +683,7 @@ class DatabaseSchemaEditorMixin:
                             ),
                         ],
                     )
-        return super()._alter_column_type_sql(model, old_field, new_field, new_type)
+        return super()._alter_column_type_sql(model, old_field, new_field, new_type, *args, **kwargs)
 
 
 class DatabaseSchemaEditor(DatabaseSchemaEditorMixin, PostgresDatabaseSchemaEditor):

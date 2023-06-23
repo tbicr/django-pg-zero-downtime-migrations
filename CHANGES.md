@@ -1,6 +1,7 @@
 # django-pg-zero-downtime-migrations changelog
 
 ## 0.13
+  - added django 4.2 support
   - marked django 3.2 support deprecated
   - marked django 4.0 support deprecated
   - marked django 4.1 support deprecated
