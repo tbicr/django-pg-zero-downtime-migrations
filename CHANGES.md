@@ -1,6 +1,10 @@
 # django-pg-zero-downtime-migrations changelog
 
 ## 0.13
+  - marked django 3.2 support deprecated
+  - marked django 4.0 support deprecated
+  - marked django 4.1 support deprecated
+  - marked postgres 11 support deprecated
   - drop postgres 10 support
   - updated test docker image to ubuntu 22.04
 
