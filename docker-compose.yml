@@ -40,14 +40,6 @@ services:
     volumes:
       - ./docker_postgres_init.sql:/docker-entrypoint-initdb.d/docker_postgres_init.sql
 
-  pg10:
-    image: postgres:10-alpine
-    environment:
-      POSTGRES_USER: root
-      POSTGRES_PASSWORD: root
-    volumes:
-      - ./docker_postgres_init.sql:/docker-entrypoint-initdb.d/docker_postgres_init.sql
-
   postgis15:
     image: postgis/postgis:15-3.3-alpine
     environment:
@@ -64,7 +56,6 @@ services:
       - pg13
       - pg12
       - pg11
-      - pg10
       - postgis15
     volumes:
       - .:/app
