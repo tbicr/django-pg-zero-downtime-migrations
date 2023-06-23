@@ -18,9 +18,6 @@ import pytest
 from django_zero_downtime_migrations.backends.postgres.schema import (
     UnsafeOperationException, UnsafeOperationWarning
 )
-from tests import skip_for_default_django_backend
-
-pytestmark = skip_for_default_django_backend
 
 DatabaseSchemaEditor = import_string(settings.DATABASES['default']['ENGINE'] + '.schema.DatabaseSchemaEditor')
 
@@ -117,6 +114,14 @@ def zero_timeouts():
             yield
 
 
+@pytest.fixture(autouse=True)
+def cursor(mocker):
+    with connection.cursor() as cursor:
+        mocker.patch.object(connection, 'cursor')().__enter__.return_value = cursor
+        yield cursor
+
+
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_create_model__ok():
     with cmp_schema_editor() as editor:
@@ -135,6 +140,7 @@ def test_create_model__ok():
         ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_drop_model__ok():
     with cmp_schema_editor() as editor:
@@ -145,6 +151,7 @@ def test_drop_model__ok():
     ]
 
 
+@pytest.mark.django_db
 def test_rename_model__warning():
     with cmp_schema_editor() as editor:
         with pytest.warns(UnsafeOperationWarning, match='ALTER TABLE RENAME is unsafe operation'):
@@ -155,6 +162,7 @@ def test_rename_model__warning():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_rename_model__raise():
     with cmp_schema_editor() as editor:
@@ -165,6 +173,7 @@ def test_rename_model__raise():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_rename_model_with_same_db_table__ok():
     with cmp_schema_editor() as editor:
@@ -173,6 +182,7 @@ def test_rename_model_with_same_db_table__ok():
     assert editor.django_sql == []
 
 
+@pytest.mark.django_db
 def test_change_model_tablespace__warning():
     with cmp_schema_editor() as editor:
         with pytest.warns(UnsafeOperationWarning, match='ALTER TABLE SET TABLESPACE is unsafe operation'):
@@ -183,6 +193,7 @@ def test_change_model_tablespace__warning():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_change_model_tablespace__raise():
     with cmp_schema_editor() as editor:
@@ -193,6 +204,17 @@ def test_change_model_tablespace__raise():
     ]
 
 
+@pytest.mark.django_db
+@pytest.mark.skipif(django.VERSION[:2] < (4, 2), reason='functionality provided in django 4.2')
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_change_model_comment__ok():
+    with cmp_schema_editor() as editor:
+        editor.alter_db_table_comment(Model, 'old_comment', 'new_comment')
+    assert editor.collected_sql == editor.django_sql
+    assert editor.django_sql == ['COMMENT ON TABLE "tests_model" IS \'new_comment\';']
+
+
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_add_field__ok():
     with cmp_schema_editor() as editor:
@@ -205,6 +227,7 @@ def test_add_field__ok():
     ]
 
 
+@pytest.mark.django_db
 def test_add_field_with_default__warning():
     with cmp_schema_editor() as editor:
         with pytest.warns(UnsafeOperationWarning, match='ADD COLUMN DEFAULT is unsafe operation'):
@@ -222,6 +245,7 @@ def test_add_field_with_default__warning():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_add_field_with_default__raise():
     with cmp_schema_editor() as editor:
@@ -235,6 +259,7 @@ def test_add_field_with_default__raise():
     ]
 
 
+@pytest.mark.django_db
 def test_add_field_with_not_null__warning():
     with cmp_schema_editor() as editor:
         with pytest.warns(UnsafeOperationWarning, match='ADD COLUMN NOT NULL is unsafe operation'):
@@ -247,6 +272,7 @@ def test_add_field_with_not_null__warning():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_add_field_with_not_null__raise():
     with cmp_schema_editor() as editor:
@@ -259,6 +285,7 @@ def test_add_field_with_not_null__raise():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=True)
 def test_add_field_with_not_null__allowed_for_all_tables__warning():
     with cmp_schema_editor() as editor:
@@ -272,9 +299,10 @@ def test_add_field_with_not_null__allowed_for_all_tables__warning():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=10)
-def test_add_field_with_not_null__allowed_for_small_tables__warning(mocker):
-    mocker.patch.object(connection, 'cursor')().__enter__().fetchone.return_value = (5,)
+def test_add_field_with_not_null__allowed_for_small_tables__warning(cursor, mocker):
+    mocker.patch.object(cursor, 'fetchone').return_value = (5,)
     with cmp_schema_editor() as editor:
         with pytest.warns(UnsafeOperationWarning, match='ADD COLUMN NOT NULL is unsafe operation'):
             field = models.CharField(max_length=40, null=False)
@@ -286,9 +314,10 @@ def test_add_field_with_not_null__allowed_for_small_tables__warning(mocker):
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=1)
-def test_add_field_with_not_null__use_compatible_constraint_for_large_tables__warning(mocker):
-    mocker.patch.object(connection, 'cursor')().__enter__().fetchone.return_value = (5,)
+def test_add_field_with_not_null__use_compatible_constraint_for_large_tables__warning(cursor, mocker):
+    mocker.patch.object(cursor, 'fetchone').return_value = (5,)
     with cmp_schema_editor() as editor:
         with pytest.warns(UnsafeOperationWarning, match='ADD COLUMN NOT NULL is unsafe operation'):
             field = models.CharField(max_length=40, null=False)
@@ -300,10 +329,13 @@ def test_add_field_with_not_null__use_compatible_constraint_for_large_tables__wa
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=1,
                    ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
-def test_add_field_with_not_null__use_compatible_constraint_for_large_tables__with_flexible_timeout__warning(mocker):
-    mocker.patch.object(connection, 'cursor')().__enter__().fetchone.return_value = (5,)
+def test_add_field_with_not_null__use_compatible_constraint_for_large_tables__with_flexible_timeout__warning(
+    cursor, mocker
+):
+    mocker.patch.object(cursor, 'fetchone').return_value = (5,)
     with cmp_schema_editor() as editor:
         with pytest.warns(UnsafeOperationWarning, match='ADD COLUMN NOT NULL is unsafe operation'):
             field = models.CharField(max_length=40, null=False)
@@ -315,6 +347,7 @@ def test_add_field_with_not_null__use_compatible_constraint_for_large_tables__wi
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=False)
 def test_add_field_with_not_null__use_compatible_constraint_for_all_tables__warning():
     with cmp_schema_editor() as editor:
@@ -328,6 +361,7 @@ def test_add_field_with_not_null__use_compatible_constraint_for_all_tables__warn
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=False,
                    ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
 def test_add_field_with_not_null__use_compatible_constraint_for_all_tables__with_flexible_timeout__warning():
@@ -342,6 +376,7 @@ def test_add_field_with_not_null__use_compatible_constraint_for_all_tables__with
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
                    ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=True)
 def test_add_field_with_not_null__allowed_for_all_tables__raise():
@@ -355,10 +390,11 @@ def test_add_field_with_not_null__allowed_for_all_tables__raise():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
                    ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=10)
-def test_add_field_with_not_null__allowed_for_small_tables__raise(mocker):
-    mocker.patch.object(connection, 'cursor')().__enter__().fetchone.return_value = (5,)
+def test_add_field_with_not_null__allowed_for_small_tables__raise(cursor, mocker):
+    mocker.patch.object(cursor, 'fetchone').return_value = (5,)
     with cmp_schema_editor() as editor:
         with pytest.raises(UnsafeOperationException, match='ADD COLUMN NOT NULL is unsafe operation'):
             field = models.CharField(max_length=40, null=False)
@@ -369,10 +405,11 @@ def test_add_field_with_not_null__allowed_for_small_tables__raise(mocker):
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
                    ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=1)
-def test_add_field_with_not_null__use_compatible_constraint_for_large_tables__raise(mocker):
-    mocker.patch.object(connection, 'cursor')().__enter__().fetchone.return_value = (5,)
+def test_add_field_with_not_null__use_compatible_constraint_for_large_tables__raise(cursor, mocker):
+    mocker.patch.object(cursor, 'fetchone').return_value = (5,)
     with cmp_schema_editor() as editor:
         with pytest.raises(UnsafeOperationException, match='ADD COLUMN NOT NULL is unsafe operation'):
             field = models.CharField(max_length=40, null=False)
@@ -383,6 +420,7 @@ def test_add_field_with_not_null__use_compatible_constraint_for_large_tables__ra
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
                    ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=False)
 def test_add_field_with_not_null__use_compatible_constraint_for_all_tables__raise():
@@ -396,6 +434,7 @@ def test_add_field_with_not_null__use_compatible_constraint_for_all_tables__rais
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_add_field_with_foreign_key__ok():
     with cmp_schema_editor() as editor:
@@ -421,6 +460,7 @@ def test_add_field_with_foreign_key__ok():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
                    ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
 def test_add_field_with_foreign_key__with_flexible_timeout__ok():
@@ -447,6 +487,7 @@ def test_add_field_with_foreign_key__with_flexible_timeout__ok():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_add_field_with_primary_key__ok():
     with cmp_schema_editor() as editor:
@@ -469,6 +510,7 @@ def test_add_field_with_primary_key__ok():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
                    ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
 def test_add_field_with_primary_key__with_flexible_timeout__ok():
@@ -492,6 +534,7 @@ def test_add_field_with_primary_key__with_flexible_timeout__ok():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_add_field_with_unique__ok():
     with cmp_schema_editor() as editor:
@@ -515,6 +558,7 @@ def test_add_field_with_unique__ok():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
                    ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
 def test_add_field_with_unique__with_flexible_timeout__ok():
@@ -539,9 +583,9 @@ def test_add_field_with_unique__with_flexible_timeout__ok():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
-def test_alter_field_type_integer_to_integer_identity__ok(mocker):
-    mocker.patch.object(connection, 'cursor')
+def test_alter_field_type_integer_to_integer_identity__ok():
     with cmp_schema_editor() as editor:
         old_field = models.IntegerField(primary_key=True)
         old_field.set_attributes_from_name('field')
@@ -584,9 +628,9 @@ def test_alter_field_type_integer_to_integer_identity__ok(mocker):
         ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
-def test_alter_field_type_integer_identity_to_integer__ok(mocker):
-    mocker.patch.object(connection, 'cursor')
+def test_alter_field_type_integer_identity_to_integer__ok():
     with cmp_schema_editor() as editor:
         old_field = models.AutoField(primary_key=True)
         old_field.set_attributes_from_name('field')
@@ -617,8 +661,8 @@ def test_alter_field_type_integer_identity_to_integer__ok(mocker):
         ]
 
 
-def test_alter_field_type_integer_to_bigint_identity__warning(mocker):
-    mocker.patch.object(connection, 'cursor')
+@pytest.mark.django_db
+def test_alter_field_type_integer_to_bigint_identity__warning():
     with cmp_schema_editor() as editor:
         with pytest.warns(UnsafeOperationWarning, match='ALTER COLUMN TYPE is unsafe operation'):
             old_field = models.IntegerField(primary_key=True)
@@ -662,6 +706,7 @@ def test_alter_field_type_integer_to_bigint_identity__warning(mocker):
         ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_alter_field_type_integer_to_bigint_identity__raise():
     with cmp_schema_editor() as editor:
@@ -689,8 +734,13 @@ def test_alter_field_type_integer_to_bigint_identity__raise():
         ]
 
 
+@pytest.mark.django_db
 def test_alter_field_type_integer_identity_to_bigint__warning(mocker):
-    mocker.patch.object(connection, 'cursor')().__enter__().fetchall.return_value = [('field_seq', 'field')]
+    mocker.patch.object(connection.introspection, 'get_sequences').return_value = [{
+        'column': 'field',
+        'name': 'field_seq',
+        'table': 'tests_model',
+    }]
     with cmp_schema_editor() as editor:
         with pytest.warns(UnsafeOperationWarning, match='ALTER COLUMN TYPE is unsafe operation'):
             old_field = models.AutoField(primary_key=True)
@@ -725,9 +775,14 @@ def test_alter_field_type_integer_identity_to_bigint__warning(mocker):
         ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_alter_field_type_integer_identity_to_bigint__raise(mocker):
-    mocker.patch.object(connection, 'cursor')().__enter__().fetchall.return_value = [('field_seq', 'field')]
+    mocker.patch.object(connection.introspection, 'get_sequences').return_value = [{
+        'column': 'field',
+        'name': 'field_seq',
+        'table': 'tests_model',
+    }]
     with cmp_schema_editor() as editor:
         with pytest.raises(UnsafeOperationException, match='ALTER COLUMN TYPE is unsafe operation'):
             old_field = models.AutoField(primary_key=True)
@@ -750,8 +805,13 @@ def test_alter_field_type_integer_identity_to_bigint__raise(mocker):
         ]
 
 
+@pytest.mark.django_db
 def test_alter_field_type_integer_identity_to_bigint_identity__warning(mocker):
-    mocker.patch.object(connection, 'cursor')().__enter__().fetchall.return_value = [('field_seq', 'field')]
+    mocker.patch.object(connection.introspection, 'get_sequences').return_value = [{
+        'column': 'field',
+        'name': 'field_seq',
+        'table': 'tests_model',
+    }]
     with cmp_schema_editor() as editor:
         with pytest.warns(UnsafeOperationWarning, match='ALTER COLUMN TYPE is unsafe operation'):
             old_field = models.AutoField(primary_key=True)
@@ -787,9 +847,14 @@ def test_alter_field_type_integer_identity_to_bigint_identity__warning(mocker):
         ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_alter_field_type_integer_identity_to_bigint_identity__raise(mocker):
-    mocker.patch.object(connection, 'cursor')().__enter__().fetchall.return_value = [('field_seq', 'field')]
+    mocker.patch.object(connection.introspection, 'get_sequences').return_value = [{
+        'column': 'field',
+        'name': 'field_seq',
+        'table': 'tests_model',
+    }]
     with cmp_schema_editor() as editor:
         with pytest.raises(UnsafeOperationException, match='ALTER COLUMN TYPE is unsafe operation'):
             old_field = models.AutoField(primary_key=True)
@@ -815,6 +880,7 @@ def test_alter_field_type_integer_identity_to_bigint_identity__raise(mocker):
         ]
 
 
+@pytest.mark.django_db
 def test_alter_field_type_varchar40_to_varchar20__warning():
     with cmp_schema_editor() as editor:
         with pytest.warns(UnsafeOperationWarning, match='ALTER COLUMN TYPE is unsafe operation'):
@@ -829,6 +895,7 @@ def test_alter_field_type_varchar40_to_varchar20__warning():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_alter_field_type_varchar40_to_varchar20_error():
     with cmp_schema_editor() as editor:
@@ -843,6 +910,7 @@ def test_alter_field_type_varchar40_to_varchar20_error():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_alter_field_type_varchar40_to_varchar80__ok():
     with cmp_schema_editor() as editor:
@@ -857,6 +925,7 @@ def test_alter_field_type_varchar40_to_varchar80__ok():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_alter_field_type_varchar40_to_text__ok():
     with cmp_schema_editor() as editor:
@@ -871,6 +940,7 @@ def test_alter_field_type_varchar40_to_text__ok():
     ]
 
 
+@pytest.mark.django_db
 def test_alter_field_type_decimal10_2_to_decimal5_2__warning():
     with cmp_schema_editor() as editor:
         with pytest.warns(UnsafeOperationWarning, match='ALTER COLUMN TYPE is unsafe operation'):
@@ -885,6 +955,7 @@ def test_alter_field_type_decimal10_2_to_decimal5_2__warning():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_alter_field_type_decimal10_2_to_decimal5_2__raise():
     with cmp_schema_editor() as editor:
@@ -899,6 +970,7 @@ def test_alter_field_type_decimal10_2_to_decimal5_2__raise():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_alter_field_type_decimal10_2_to_decimal20_2__ok():
     with cmp_schema_editor() as editor:
@@ -913,6 +985,7 @@ def test_alter_field_type_decimal10_2_to_decimal20_2__ok():
     ]
 
 
+@pytest.mark.django_db
 def test_alter_field_type_decimal10_2_to_decimal10_3__warning():
     with cmp_schema_editor() as editor:
         with pytest.warns(UnsafeOperationWarning, match='ALTER COLUMN TYPE is unsafe operation'):
@@ -927,6 +1000,7 @@ def test_alter_field_type_decimal10_2_to_decimal10_3__warning():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_alter_field_type_decimal10_2_to_decimal10_3__raise():
     with cmp_schema_editor() as editor:
@@ -941,6 +1015,7 @@ def test_alter_field_type_decimal10_2_to_decimal10_3__raise():
     ]
 
 
+@pytest.mark.django_db
 def test_alter_field_type_decimal10_2_to_decimal10_1__warning():
     with cmp_schema_editor() as editor:
         with pytest.warns(UnsafeOperationWarning, match='ALTER COLUMN TYPE is unsafe operation'):
@@ -955,6 +1030,7 @@ def test_alter_field_type_decimal10_2_to_decimal10_1__warning():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_alter_field_type_decimal10_2_to_decimal10_1__raise():
     with cmp_schema_editor() as editor:
@@ -969,6 +1045,7 @@ def test_alter_field_type_decimal10_2_to_decimal10_1__raise():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_alter_field_set_not_null__ok():
     with cmp_schema_editor() as editor:
@@ -992,6 +1069,7 @@ def test_alter_field_set_not_null__ok():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
                    ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
 def test_alter_field_set_not_null__with_flexible_timeout__ok():
@@ -1016,6 +1094,7 @@ def test_alter_field_set_not_null__with_flexible_timeout__ok():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
                    ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL='USE_PG_ATTRIBUTE_UPDATE_FOR_SUPERUSER')
 @old_pg
@@ -1042,6 +1121,7 @@ def test_alter_field_set_not_null__old_pg__use_pg_attribute_update__ok():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
                    ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL='USE_PG_ATTRIBUTE_UPDATE_FOR_SUPERUSER',
                    ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
@@ -1069,6 +1149,7 @@ def test_alter_field_set_not_null__old_pg__use_pg_attribute_update__with_flexibl
     ]
 
 
+@pytest.mark.django_db
 @old_pg
 def test_alter_field_set_not_null__old_pg__warning():
     with cmp_schema_editor() as editor:
@@ -1084,6 +1165,7 @@ def test_alter_field_set_not_null__old_pg__warning():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 @old_pg
 def test_alter_field_set_not_null__old_pg__raise():
@@ -1099,6 +1181,7 @@ def test_alter_field_set_not_null__old_pg__raise():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
                    ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=True)
 @old_pg
@@ -1116,11 +1199,13 @@ def test_alter_field_set_not_null__old_pg__allowed_for_all_tables__warning():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
                    ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=10)
 @old_pg
-def test_alter_field_set_not_null__old_pg__allowed_for_small_tables__warning(mocker):
-    mocker.patch.object(connection, 'cursor')().__enter__().fetchone.return_value = (5,)
+def test_alter_field_set_not_null__old_pg__allowed_for_small_tables__warning(cursor, mocker):
+    mocker.patch.object(cursor, 'execute')
+    mocker.patch.object(cursor, 'fetchone').return_value = (5,)
     with cmp_schema_editor() as editor:
         with pytest.warns(UnsafeOperationWarning, match='ALTER COLUMN NOT NULL is unsafe operation'):
             old_field = models.CharField(max_length=40, null=True)
@@ -1134,11 +1219,13 @@ def test_alter_field_set_not_null__old_pg__allowed_for_small_tables__warning(moc
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
                    ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=1)
 @old_pg
-def test_alter_field_set_not_null__old_pg__use_compatible_constraint_for_large_tables__ok(mocker):
-    mocker.patch.object(connection, 'cursor')().__enter__().fetchone.return_value = (5,)
+def test_alter_field_set_not_null__old_pg__use_compatible_constraint_for_large_tables__ok(cursor, mocker):
+    mocker.patch.object(cursor, 'execute')
+    mocker.patch.object(cursor, 'fetchone').return_value = (5,)
     with cmp_schema_editor() as editor:
         old_field = models.CharField(max_length=40, null=True)
         old_field.set_attributes_from_name('field')
@@ -1156,14 +1243,16 @@ def test_alter_field_set_not_null__old_pg__use_compatible_constraint_for_large_t
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
                    ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=1,
                    ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
 @old_pg
 def test_alter_field_set_not_null__old_pg__use_compatible_constraint_for_large_tables__with_flexible_timeout__ok(
-    mocker
+    cursor, mocker
 ):
-    mocker.patch.object(connection, 'cursor')().__enter__().fetchone.return_value = (5,)
+    mocker.patch.object(cursor, 'execute')
+    mocker.patch.object(cursor, 'fetchone').return_value = (5,)
     with cmp_schema_editor() as editor:
         old_field = models.CharField(max_length=40, null=True)
         old_field.set_attributes_from_name('field')
@@ -1181,6 +1270,7 @@ def test_alter_field_set_not_null__old_pg__use_compatible_constraint_for_large_t
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
                    ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=False)
 @old_pg
@@ -1202,6 +1292,7 @@ def test_alter_field_set_not_null__old_pg__use_compatible_constraint_for_all_tab
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
                    ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=False,
                    ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
@@ -1224,9 +1315,11 @@ def test_alter_field_set_not_null__old_pg__use_compatible_constraint_for_all_tab
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
-def test_alter_filed_drop_not_null__ok(mocker):
-    mocker.patch.object(connection, 'cursor')().__enter__().fetchone.return_value = None
+def test_alter_filed_drop_not_null__ok(cursor, mocker):
+    mocker.patch.object(cursor, 'execute')
+    mocker.patch.object(cursor, 'fetchone').return_value = None
     with cmp_schema_editor() as editor:
         old_field = models.CharField(max_length=40, null=False)
         old_field.set_attributes_from_name('field')
@@ -1239,9 +1332,11 @@ def test_alter_filed_drop_not_null__ok(mocker):
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
-def test_alter_filed_drop_not_null_constraint__ok(mocker):
-    mocker.patch.object(connection, 'cursor')().__enter__().fetchone.return_value = (
+def test_alter_filed_drop_not_null_constraint__ok(cursor, mocker):
+    mocker.patch.object(cursor, 'execute')
+    mocker.patch.object(cursor, 'fetchone').return_value = (
         'tests_model_field_0a53d95f_notnull',
     )
     with cmp_schema_editor() as editor:
@@ -1258,6 +1353,7 @@ def test_alter_filed_drop_not_null_constraint__ok(mocker):
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_alter_field_set_default__ok():
     with cmp_schema_editor() as editor:
@@ -1271,6 +1367,7 @@ def test_alter_field_set_default__ok():
     assert editor.django_sql == []
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_alter_field_drop_default__ok():
     with cmp_schema_editor() as editor:
@@ -1284,6 +1381,7 @@ def test_alter_field_drop_default__ok():
     assert editor.django_sql == []
 
 
+@pytest.mark.django_db
 def test_rename_field__warning():
     with cmp_schema_editor() as editor:
         with pytest.warns(UnsafeOperationWarning, match='ALTER TABLE RENAME COLUMN is unsafe operation'):
@@ -1298,6 +1396,7 @@ def test_rename_field__warning():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_rename_field__raise():
     with cmp_schema_editor() as editor:
@@ -1312,6 +1411,7 @@ def test_rename_field__raise():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_remove_field__ok():
     with cmp_schema_editor() as editor:
@@ -1324,6 +1424,7 @@ def test_remove_field__ok():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_alter_field_add_constraint_check__ok():
     with cmp_schema_editor() as editor:
@@ -1343,6 +1444,7 @@ def test_alter_field_add_constraint_check__ok():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
                    ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
 def test_alter_field_add_constraint_check__with_flexible_timeout__ok():
@@ -1363,9 +1465,9 @@ def test_alter_field_add_constraint_check__with_flexible_timeout__ok():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_alter_field_drop_constraint_check__ok(mocker):
-    mocker.patch.object(connection, 'cursor')
     mocker.patch.object(connection.introspection, 'get_constraints').return_value = {
         'tests_model_field_0a53d95f_check': {
             'columns': ['field'],
@@ -1390,6 +1492,7 @@ def test_alter_field_drop_constraint_check__ok(mocker):
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_alter_filed_add_constraint_foreign_key__ok():
     with cmp_schema_editor() as editor:
@@ -1413,6 +1516,7 @@ def test_alter_filed_add_constraint_foreign_key__ok():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
                    ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
 def test_alter_filed_add_constraint_foreign_key__with_flexible_timeout__ok():
@@ -1437,9 +1541,9 @@ def test_alter_filed_add_constraint_foreign_key__with_flexible_timeout__ok():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_alter_field_drop_constraint_foreign_key__ok(mocker):
-    mocker.patch.object(connection, 'cursor')
     mocker.patch.object(connection.introspection, 'get_constraints').return_value = {
         'tests_model_field_0a53d95f_pk': {
             'columns': ['field_id'],
@@ -1465,9 +1569,9 @@ def test_alter_field_drop_constraint_foreign_key__ok(mocker):
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_alter_field_add_constraint_primary_key__ok(mocker):
-    mocker.patch.object(connection, 'cursor')
     with cmp_schema_editor() as editor:
         old_field = models.CharField(max_length=40, unique=True)
         old_field.set_attributes_from_name('field')
@@ -1487,10 +1591,10 @@ def test_alter_field_add_constraint_primary_key__ok(mocker):
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
                    ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
 def test_alter_field_add_constraint_primary_key__with_flexible_timeout__ok(mocker):
-    mocker.patch.object(connection, 'cursor')
     with cmp_schema_editor() as editor:
         old_field = models.CharField(max_length=40, unique=True)
         old_field.set_attributes_from_name('field')
@@ -1510,9 +1614,9 @@ def test_alter_field_add_constraint_primary_key__with_flexible_timeout__ok(mocke
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_alter_field_drop_constraint_primary_key__ok(mocker):
-    mocker.patch.object(connection, 'cursor')
     mocker.patch.object(connection.introspection, 'get_constraints').return_value = {
         'tests_model_field_0a53d95f_pk': {
             'columns': ['field'],
@@ -1542,6 +1646,7 @@ def test_alter_field_drop_constraint_primary_key__ok(mocker):
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_alter_field_add_constraint_unique__ok():
     with cmp_schema_editor() as editor:
@@ -1565,6 +1670,7 @@ def test_alter_field_add_constraint_unique__ok():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
                    ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
 def test_alter_field_add_constraint_unique__with_flexible_timeout__ok():
@@ -1589,9 +1695,9 @@ def test_alter_field_add_constraint_unique__with_flexible_timeout__ok():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_alter_field_drop_constraint_unique__ok(mocker):
-    mocker.patch.object(connection, 'cursor')
     mocker.patch.object(connection.introspection, 'get_constraints').return_value = {
         'tests_model_field_0a53d95f_uniq': {
             'columns': ['field'],
@@ -1621,6 +1727,7 @@ def test_alter_field_drop_constraint_unique__ok(mocker):
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_add_index__ok():
     with cmp_schema_editor() as editor:
@@ -1639,6 +1746,7 @@ def test_add_index__ok():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
                    ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
 def test_add_index__with_flexible_timeout__ok():
@@ -1659,9 +1767,9 @@ def test_add_index__with_flexible_timeout__ok():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_remove_index__ok(mocker):
-    mocker.patch.object(connection, 'cursor')
     mocker.patch.object(connection.introspection, 'get_constraints').return_value = {
         'tests_model_field_idx': {
             'columns': ['field'],
@@ -1690,9 +1798,9 @@ def test_remove_index__ok(mocker):
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_add_unique_together__ok(mocker):
-    mocker.patch.object(connection, 'cursor')
     with cmp_schema_editor() as editor:
         editor.alter_unique_together(Model, [], [['field1', 'field2']])
     assert editor.collected_sql == [
@@ -1708,10 +1816,10 @@ def test_add_unique_together__ok(mocker):
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
                    ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
 def test_add_unique_together__with_flexible_timeout__ok(mocker):
-    mocker.patch.object(connection, 'cursor')
     with cmp_schema_editor() as editor:
         editor.alter_unique_together(Model, [], [['field1', 'field2']])
     assert editor.collected_sql == flexible_statement_timeout(
@@ -1727,9 +1835,9 @@ def test_add_unique_together__with_flexible_timeout__ok(mocker):
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_remove_unique_together__ok(mocker):
-    mocker.patch.object(connection, 'cursor')
     mocker.patch.object(connection.introspection, 'get_constraints').return_value = {
         'tests_model_field_idx': {
             'columns': ['field1', 'field2'],
@@ -1750,9 +1858,9 @@ def test_remove_unique_together__ok(mocker):
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_add_index_together__ok(mocker):
-    mocker.patch.object(connection, 'cursor')
     with cmp_schema_editor() as editor:
         editor.alter_index_together(Model, [], [['field1', 'field2']])
     assert editor.collected_sql == [
@@ -1764,10 +1872,10 @@ def test_add_index_together__ok(mocker):
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
                    ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
 def test_add_index_together__with_flexible_timeout__ok(mocker):
-    mocker.patch.object(connection, 'cursor')
     with cmp_schema_editor() as editor:
         editor.alter_index_together(Model, [], [['field1', 'field2']])
     assert editor.collected_sql == flexible_statement_timeout(
@@ -1779,9 +1887,9 @@ def test_add_index_together__with_flexible_timeout__ok(mocker):
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_remove_index_together__ok(mocker):
-    mocker.patch.object(connection, 'cursor')
     mocker.patch.object(connection.introspection, 'get_constraints').return_value = {
         'tests_model_field_idx': {
             'columns': ['field1', 'field2'],
@@ -1806,6 +1914,7 @@ def test_remove_index_together__ok(mocker):
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_add_meta_check_constraint__ok():
     with cmp_schema_editor() as editor:
@@ -1821,6 +1930,7 @@ def test_add_meta_check_constraint__ok():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
                    ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
 def test_add_meta_check_constraint__with_flexible_timeout__ok():
@@ -1837,6 +1947,7 @@ def test_add_meta_check_constraint__with_flexible_timeout__ok():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_drop_meta_check_constraint__ok():
     with cmp_schema_editor() as editor:
@@ -1849,6 +1960,7 @@ def test_drop_meta_check_constraint__ok():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_add_meta_unique_constraint__ok():
     with cmp_schema_editor() as editor:
@@ -1864,6 +1976,7 @@ def test_add_meta_unique_constraint__ok():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
                    ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
 def test_add_meta_unique_constraint__with_flexible_timeout__ok():
@@ -1880,6 +1993,7 @@ def test_add_meta_unique_constraint__with_flexible_timeout__ok():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_add_meta_multicolumn_unique_constraint__ok():
     with cmp_schema_editor() as editor:
@@ -1895,6 +2009,7 @@ def test_add_meta_multicolumn_unique_constraint__ok():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_add_meta_conditional_unique_constraint__ok():
     with cmp_schema_editor() as editor:
@@ -1908,6 +2023,7 @@ def test_add_meta_conditional_unique_constraint__ok():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_add_meta_conditional_multicolumn_unique_constraint__ok():
     with cmp_schema_editor() as editor:
@@ -1933,6 +2049,7 @@ def test_add_meta_conditional_multicolumn_unique_constraint__ok():
         ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_drop_meta_unique_constraint__ok():
     with cmp_schema_editor() as editor:
@@ -1945,6 +2062,7 @@ def test_drop_meta_unique_constraint__ok():
     ]
 
 
+@pytest.mark.django_db
 def test_add_meta_exclusion_constraint__warning():
     with pytest.warns(UnsafeOperationWarning, match='ADD CONSTRAINT EXCLUDE is unsafe operation'):
         with cmp_schema_editor() as editor:
@@ -1955,6 +2073,7 @@ def test_add_meta_exclusion_constraint__warning():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_add_meta_exclusion_constraint__raise():
     with pytest.raises(UnsafeOperationException, match='ADD CONSTRAINT EXCLUDE is unsafe operation'):
@@ -1965,6 +2084,7 @@ def test_add_meta_exclusion_constraint__raise():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_drop_meta_exclusion_constraint__ok():
     with cmp_schema_editor() as editor:
@@ -1975,6 +2095,7 @@ def test_drop_meta_exclusion_constraint__ok():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_add_meta_index__ok():
     with cmp_schema_editor() as editor:
@@ -1988,6 +2109,7 @@ def test_add_meta_index__ok():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
                    ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
 def test_add_meta_index__with_flexible_timeout__ok():
@@ -2002,6 +2124,7 @@ def test_add_meta_index__with_flexible_timeout__ok():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_add_meta_multicolumn_index__ok():
     with cmp_schema_editor() as editor:
@@ -2015,6 +2138,7 @@ def test_add_meta_multicolumn_index__ok():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_add_meta_conditional_index__ok():
     with cmp_schema_editor() as editor:
@@ -2027,6 +2151,7 @@ def test_add_meta_conditional_index__ok():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_add_meta_conditional_multicolumn_index__ok():
     with cmp_schema_editor() as editor:
@@ -2040,6 +2165,7 @@ def test_add_meta_conditional_multicolumn_index__ok():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_add_meta_index_concurrently__ok():
     with cmp_schema_editor() as editor:
@@ -2051,6 +2177,7 @@ def test_add_meta_index_concurrently__ok():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
                    ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
 def test_add_meta_index_concurrently__with_flexible_timeout__ok():
@@ -2063,6 +2190,7 @@ def test_add_meta_index_concurrently__with_flexible_timeout__ok():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_drop_meta_index__ok():
     with cmp_schema_editor() as editor:
@@ -2075,6 +2203,7 @@ def test_drop_meta_index__ok():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_drop_meta_index_concurrently__ok():
     with cmp_schema_editor() as editor:
@@ -2086,6 +2215,7 @@ def test_drop_meta_index_concurrently__ok():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_add_meta_brin_index__ok():
     with cmp_schema_editor() as editor:
@@ -2098,6 +2228,7 @@ def test_add_meta_brin_index__ok():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
                    ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
 def test_add_meta_brin_index__with_flexible_timeout__ok():
@@ -2111,6 +2242,7 @@ def test_add_meta_brin_index__with_flexible_timeout__ok():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_add_meta_btree_index__ok():
     with cmp_schema_editor() as editor:
@@ -2123,6 +2255,7 @@ def test_add_meta_btree_index__ok():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
                    ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
 def test_add_meta_btree_index__with_flexible_timeout__ok():
@@ -2136,6 +2269,7 @@ def test_add_meta_btree_index__with_flexible_timeout__ok():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_add_meta_gin_index__ok():
     with cmp_schema_editor() as editor:
@@ -2148,6 +2282,7 @@ def test_add_meta_gin_index__ok():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
                    ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
 def test_add_meta_gin_index__with_flexible_timeout__ok():
@@ -2161,6 +2296,7 @@ def test_add_meta_gin_index__with_flexible_timeout__ok():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_add_meta_gist_index__ok():
     with cmp_schema_editor() as editor:
@@ -2173,6 +2309,7 @@ def test_add_meta_gist_index__ok():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
                    ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
 def test_add_meta_gist_index__with_flexible_timeout__ok():
@@ -2186,6 +2323,7 @@ def test_add_meta_gist_index__with_flexible_timeout__ok():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_add_meta_hash_index__ok():
     with cmp_schema_editor() as editor:
@@ -2198,6 +2336,7 @@ def test_add_meta_hash_index__ok():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
                    ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
 def test_add_meta_hash_index__with_flexible_timeout__ok():
@@ -2211,6 +2350,7 @@ def test_add_meta_hash_index__with_flexible_timeout__ok():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_add_meta_spgist_index__ok():
     with cmp_schema_editor() as editor:
@@ -2223,6 +2363,7 @@ def test_add_meta_spgist_index__ok():
     ]
 
 
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
                    ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
 def test_add_meta_spgist_index__with_flexible_timeout__ok():
