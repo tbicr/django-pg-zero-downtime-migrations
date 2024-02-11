@@ -241,6 +241,7 @@ class DatabaseSchemaEditorMixin:
         self.FLEXIBLE_STATEMENT_TIMEOUT = getattr(
             settings, "ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT", False)
         self.RAISE_FOR_UNSAFE = getattr(settings, "ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE", False)
+        self.DEFERRED_SQL = getattr(settings, "ZERO_DOWNTIME_MIGRATIONS_DEFERRED_SQL", True)
 
     def execute(self, sql, params=()):
         if sql is DUMMY_SQL:
@@ -296,12 +297,19 @@ class DatabaseSchemaEditorMixin:
             self.execute(self.sql_set_lock_timeout % {"lock_timeout": previous_lock_timeout})
 
     def _flush_deferred_sql(self):
-        """As some alternative sql use deferred sql and deferred sql run after all operations in miration module
+        """As some alternative sql use deferred sql and deferred sql run after all operations in migration module
          so good idea to run deferred sql as soon as possible to provide similar as possible state
-         between operations in migration module."""
-        for sql in self.deferred_sql:
-            self.execute(sql)
-        self.deferred_sql.clear()
+         between operations in migration module. But this approach can be reason of errors for some migrations.
+
+         As only constraints creation placed in deferred sql
+         it looks safe to keep standard django deferred sql run approach.
+
+         # TODO: drop option to run deferred sql as soon as possible in future
+         """
+        if not self.DEFERRED_SQL:
+            for sql in self.deferred_sql:
+                self.execute(sql)
+            self.deferred_sql.clear()
 
     def create_model(self, model):
         super().create_model(model)
