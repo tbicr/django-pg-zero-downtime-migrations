@@ -1,6 +1,7 @@
 # django-pg-zero-downtime-migrations changelog
 
 ## 0.14
+  - fix deferred sql errors
   - drop postgres 11 support
   - mark `migrate_isnotnull_check_constraints` command deprecated
 
