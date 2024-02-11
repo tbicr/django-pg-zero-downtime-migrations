@@ -10,7 +10,6 @@ from django.db.backends.postgresql.schema import (
     DatabaseSchemaEditor as PostgresDatabaseSchemaEditor
 )
 from django.db.backends.utils import strip_quotes
-from django.utils.functional import cached_property
 
 
 class Unsafe:
@@ -21,11 +20,6 @@ class Unsafe:
     )
     ADD_COLUMN_NOT_NULL = (
         "ADD COLUMN NOT NULL is unsafe operation\n"
-        "See details for safe alternative "
-        "https://github.com/tbicr/django-pg-zero-downtime-migrations#dealing-with-not-null-constraint"
-    )
-    ALTER_COLUMN_NOT_NULL = (
-        "ALTER COLUMN NOT NULL is unsafe operation\n"
         "See details for safe alternative "
         "https://github.com/tbicr/django-pg-zero-downtime-migrations#dealing-with-not-null-constraint"
     )
@@ -145,7 +139,6 @@ class PGShareUpdateExclusive(PGLock):
 
 class DatabaseSchemaEditorMixin:
     ZERO_TIMEOUT = '0ms'
-    USE_PG_ATTRIBUTE_UPDATE_FOR_SUPERUSER = 'USE_PG_ATTRIBUTE_UPDATE_FOR_SUPERUSER'
 
     sql_get_lock_timeout = "SELECT setting || unit FROM pg_settings WHERE name = 'lock_timeout'"
     sql_get_statement_timeout = "SELECT setting || unit FROM pg_settings WHERE name = 'statement_timeout'"
@@ -223,40 +216,16 @@ class DatabaseSchemaEditorMixin:
         sql_alter_table_comment = PGShareUpdateExclusive(PostgresDatabaseSchemaEditor.sql_alter_table_comment)
         sql_alter_column_comment = PGShareUpdateExclusive(PostgresDatabaseSchemaEditor.sql_alter_column_comment)
 
-    _sql_table_count = "SELECT reltuples FROM pg_class WHERE oid = '%(table)s'::regclass"
-    _sql_check_notnull_constraint = (
-        "SELECT conname FROM pg_constraint "
-        "WHERE contype = 'c' "
-        "AND conrelid = '%(table)s'::regclass "
-        "AND conname LIKE '%%_notnull'"
-        "AND pg_get_constraintdef(oid) = replace('CHECK ((%(columns)s IS NOT NULL))', '\"', '')"
-    )
-    _sql_column_not_null_compatible_le_pg12 = MultiStatementSQL(
+    _sql_column_not_null = MultiStatementSQL(
         PGAccessExclusive("ALTER TABLE %(table)s ADD CONSTRAINT %(name)s CHECK (%(column)s IS NOT NULL) NOT VALID"),
         PGShareUpdateExclusive("ALTER TABLE %(table)s VALIDATE CONSTRAINT %(name)s",
                                disable_statement_timeout=True),
-    )
-    _sql_column_not_null_le_pg12_pg_attributes_for_root = MultiStatementSQL(
-        *_sql_column_not_null_compatible_le_pg12,
-        # pg_catalog.pg_attribute update require extra privileges
-        # that can be granted manually of already available for superusers
-        "UPDATE pg_catalog.pg_attribute SET attnotnull = TRUE "
-        "WHERE attrelid = '%(table)s'::regclass::oid AND attname = replace('%(column)s', '\"', '')",
-        PGAccessExclusive("ALTER TABLE %(table)s DROP CONSTRAINT %(name)s"),
-    )
-
-    _sql_column_not_null = MultiStatementSQL(
-        *_sql_column_not_null_compatible_le_pg12,
         PGAccessExclusive("ALTER TABLE %(table)s ALTER COLUMN %(column)s SET NOT NULL"),
         PGAccessExclusive("ALTER TABLE %(table)s DROP CONSTRAINT %(name)s"),
     )
 
     _varchar_type_regexp = re.compile(r'^varchar\((?P<max_length>\d+)\)$')
     _numeric_type_regexp = re.compile(r'^numeric\((?P<precision>\d+), *(?P<scale>\d+)\)$')
-
-    @cached_property
-    def is_postgresql_12(self):
-        return self.connection.pg_version >= 120000
 
     def __init__(self, connection, collect_sql=False, atomic=True):
         # Disable atomic transactions as it can be reason of downtime or deadlock
@@ -271,14 +240,6 @@ class DatabaseSchemaEditorMixin:
         self.STATEMENT_TIMEOUT = getattr(settings, "ZERO_DOWNTIME_MIGRATIONS_STATEMENT_TIMEOUT", None)
         self.FLEXIBLE_STATEMENT_TIMEOUT = getattr(
             settings, "ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT", False)
-        if self.is_postgresql_12 and hasattr(settings, "ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL"):
-            warnings.warn(
-                'settings.ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL not applicable for postgres 12+. '
-                'Please remove this setting. If you migrated form old version, please move to NOT NULL constraint '
-                'from CHECK IS NOT NULL before with `migrate_isnotnull_check_constraints` management command.',
-                DeprecationWarning
-            )
-        self.USE_NOT_NULL = getattr(settings, "ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL", None)
         self.RAISE_FOR_UNSAFE = getattr(settings, "ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE", False)
 
     def execute(self, sql, params=()):
@@ -420,27 +381,6 @@ class DatabaseSchemaEditorMixin:
             warnings.warn(UnsafeOperationWarning(Unsafe.ALTER_TABLE_RENAME_COLUMN))
         return super()._rename_field_sql(table, old_field, new_field, new_type)
 
-    def _get_table_rows_count(self, model):
-        sql = self._sql_table_count % {"table": model._meta.db_table}
-        with self.connection.cursor() as cursor:
-            cursor.execute(sql)
-            rows_count, = cursor.fetchone()
-        return rows_count
-
-    def _use_pg_attribute_update_for_not_null(self):
-        return self.USE_NOT_NULL == self.USE_PG_ATTRIBUTE_UPDATE_FOR_SUPERUSER
-
-    def _use_check_constraint_for_not_null(self, model):
-        if self.USE_NOT_NULL is True:
-            return False
-        if self.USE_NOT_NULL is False:
-            return True
-        if isinstance(self.USE_NOT_NULL, int):
-            rows_count = self._get_table_rows_count(model)
-            if rows_count >= self.USE_NOT_NULL:
-                return True
-        return False
-
     def _add_column_default(self):
         if self.RAISE_FOR_UNSAFE:
             raise UnsafeOperationException(Unsafe.ADD_COLUMN_DEFAULT)
@@ -527,58 +467,19 @@ class DatabaseSchemaEditorMixin:
         return sql, params
 
     def _alter_column_set_not_null(self, model, new_field):
-        if not self.is_postgresql_12 and self.RAISE_FOR_UNSAFE and self.USE_NOT_NULL is None:
-            raise UnsafeOperationException(Unsafe.ALTER_COLUMN_NOT_NULL)
-        elif self.is_postgresql_12:
-            self.deferred_sql.append(self._sql_column_not_null % {
-                "column": self.quote_name(new_field.column),
-                "table": self.quote_name(model._meta.db_table),
-                "name": self.quote_name(
-                    self._create_index_name(model._meta.db_table, [new_field.column], suffix="_notnull")
-                ),
-            })
-            return DUMMY_SQL, []
-        elif self._use_pg_attribute_update_for_not_null():
-            self.deferred_sql.append(self._sql_column_not_null_le_pg12_pg_attributes_for_root % {
-                "column": self.quote_name(new_field.column),
-                "table": self.quote_name(model._meta.db_table),
-                "name": self.quote_name(
-                    self._create_index_name(model._meta.db_table, [new_field.column], suffix="_notnull")
-                ),
-            })
-            return DUMMY_SQL, []
-        elif self._use_check_constraint_for_not_null(model):
-            self.deferred_sql.append(self._sql_column_not_null_compatible_le_pg12 % {
-                "column": self.quote_name(new_field.column),
-                "table": self.quote_name(model._meta.db_table),
-                "name": self.quote_name(
-                    self._create_index_name(model._meta.db_table, [new_field.column], suffix="_notnull")
-                ),
-            })
-            return DUMMY_SQL, []
-        else:
-            warnings.warn(UnsafeOperationWarning(Unsafe.ALTER_COLUMN_NOT_NULL))
-            return self.sql_alter_column_not_null % {
-                "column": self.quote_name(new_field.column),
-            }, []
+        self.deferred_sql.append(self._sql_column_not_null % {
+            "column": self.quote_name(new_field.column),
+            "table": self.quote_name(model._meta.db_table),
+            "name": self.quote_name(
+                self._create_index_name(model._meta.db_table, [new_field.column], suffix="_notnull")
+            ),
+        })
+        return DUMMY_SQL, []
 
     def _alter_column_drop_not_null(self, model, new_field):
-        with self.connection.cursor() as cursor:
-            cursor.execute(self._sql_check_notnull_constraint % {
-                "table": self.quote_name(model._meta.db_table),
-                "columns": self.quote_name(new_field.column),
-            })
-            result = cursor.fetchone()
-        if result:
-            constraint_name, = result
-            self.deferred_sql.append(self.sql_delete_check % {
-                "table": self.quote_name(model._meta.db_table),
-                "name": constraint_name,
-            })
-        else:
-            return self.sql_alter_column_null % {
-                "column": self.quote_name(new_field.column),
-            }, []
+        return self.sql_alter_column_null % {
+            "column": self.quote_name(new_field.column),
+        }, []
 
     def _alter_column_null_sql(self, model, old_field, new_field):
         if new_field.null:
