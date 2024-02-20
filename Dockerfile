@@ -15,6 +15,7 @@ RUN apt-get install -q -y --no-install-recommends \
     python3.9 python3.9-distutils \
     python3.10 python3.10-distutils \
     python3.11 python3.11-distutils \
+    python3.12 python3.12-distutils \
     python3-pip \
     libgdal30
 RUN pip3 install setuptools tox
