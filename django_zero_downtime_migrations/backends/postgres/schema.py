@@ -5,6 +5,7 @@ from contextlib import contextmanager
 import django
 from django.conf import settings
 from django.contrib.postgres.constraints import ExclusionConstraint
+from django.db.backends.base.schema import BaseDatabaseSchemaEditor
 from django.db.backends.ddl_references import Statement
 from django.db.backends.postgresql.schema import (
     DatabaseSchemaEditor as PostgresDatabaseSchemaEditor
@@ -137,7 +138,7 @@ class PGShareUpdateExclusive(PGLock):
     pass
 
 
-class DatabaseSchemaEditorMixin:
+class DatabaseSchemaEditorMixin(BaseDatabaseSchemaEditor):
     ZERO_TIMEOUT = '0ms'
 
     sql_get_lock_timeout = "SELECT setting || unit FROM pg_settings WHERE name = 'lock_timeout'"
@@ -173,11 +174,19 @@ class DatabaseSchemaEditorMixin:
     )
     sql_delete_check = PGAccessExclusive(PostgresDatabaseSchemaEditor.sql_delete_check)
 
-    sql_create_unique = MultiStatementSQL(
-        PGShareUpdateExclusive("CREATE UNIQUE INDEX CONCURRENTLY %(name)s ON %(table)s (%(columns)s)",
-                               disable_statement_timeout=True),
-        PGAccessExclusive("ALTER TABLE %(table)s ADD CONSTRAINT %(name)s UNIQUE USING INDEX %(name)s"),
-    )
+    if django.VERSION[:2] >= (5, 0):
+        sql_create_unique = MultiStatementSQL(
+            PGShareUpdateExclusive("CREATE UNIQUE INDEX CONCURRENTLY %(name)s ON %(table)s "
+                                   "(%(columns)s)%(nulls_distinct)s",
+                                   disable_statement_timeout=True),
+            PGAccessExclusive("ALTER TABLE %(table)s ADD CONSTRAINT %(name)s UNIQUE USING INDEX %(name)s"),
+        )
+    else:
+        sql_create_unique = MultiStatementSQL(
+            PGShareUpdateExclusive("CREATE UNIQUE INDEX CONCURRENTLY %(name)s ON %(table)s (%(columns)s)",
+                                   disable_statement_timeout=True),
+            PGAccessExclusive("ALTER TABLE %(table)s ADD CONSTRAINT %(name)s UNIQUE USING INDEX %(name)s"),
+        )
     sql_delete_unique = PGAccessExclusive(PostgresDatabaseSchemaEditor.sql_delete_unique)
 
     sql_create_fk = MultiStatementSQL(
@@ -203,10 +212,16 @@ class DatabaseSchemaEditorMixin:
         PostgresDatabaseSchemaEditor.sql_create_index_concurrently,
         disable_statement_timeout=True
     )
-    sql_create_unique_index = PGShareUpdateExclusive(
-        "CREATE UNIQUE INDEX CONCURRENTLY %(name)s ON %(table)s (%(columns)s)%(condition)s",
-        disable_statement_timeout=True
-    )
+    if django.VERSION[:2] >= (5, 0):
+        sql_create_unique_index = PGShareUpdateExclusive(
+            "CREATE UNIQUE INDEX CONCURRENTLY %(name)s ON %(table)s (%(columns)s)%(condition)s%(nulls_distinct)s",
+            disable_statement_timeout=True
+        )
+    else:
+        sql_create_unique_index = PGShareUpdateExclusive(
+            "CREATE UNIQUE INDEX CONCURRENTLY %(name)s ON %(table)s (%(columns)s)%(condition)s",
+            disable_statement_timeout=True
+        )
     sql_delete_index = PGShareUpdateExclusive("DROP INDEX CONCURRENTLY IF EXISTS %(name)s")
     sql_delete_index_concurrently = PGShareUpdateExclusive(
         PostgresDatabaseSchemaEditor.sql_delete_index_concurrently
