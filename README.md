@@ -1,7 +1,7 @@
 [![PyPI](https://img.shields.io/pypi/v/django-pg-zero-downtime-migrations.svg)](https://pypi.org/project/django-pg-zero-downtime-migrations/)
 ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/django-pg-zero-downtime-migrations.svg)
 ![PyPI - Django Version](https://img.shields.io/pypi/djversions/django-pg-zero-downtime-migrations.svg?label=django)
-![Postgres Version](https://img.shields.io/badge/postgres-11%20|%2012%20|%2013%20|%2014%20|%2015%20-blue.svg)
+![Postgres Version](https://img.shields.io/badge/postgres-12%20|%2013%20|%2014%20|%2015%20|%2016%20-blue.svg)
 [![PyPI - License](https://img.shields.io/pypi/l/django-pg-zero-downtime-migrations.svg)](https://raw.githubusercontent.com/tbicr/django-pg-zero-downtime-migrations/master/LICENSE)
 
 [![PyPI - Downloads](https://img.shields.io/pypi/dm/django-pg-zero-downtime-migrations.svg)](https://pypistats.org/packages/django-pg-zero-downtime-migrations)
@@ -38,7 +38,7 @@ To enable zero downtime migrations for postgres just setup django backend provid
 
 ### Differences with standard django backend
 
-This backend provides same result state (except `NOT NULL` constraint replacement for old postgres versions if appropriate option configured), but different way and with additional guarantees for avoiding stuck table locks.
+This backend provides same result state, but different way and with additional guarantees for avoiding stuck table locks.
 
 This backend doesn't use transactions for migrations (except `RunPython` operation), because not all SQL fixes can be run in transaction and it allows to avoid deadlocks for complex migration. So when your migration will down in middle of transaction you need fix it manually (instead potential downtime). For that reason good practice to make migration modules small as possible.
 
@@ -98,6 +98,16 @@ Set [`statement_timeout`](https://www.postgresql.org/docs/current/static/runtime
 Enabled option doesn't allow run potential unsafe migration, default `False`:
 
     ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE = True
+
+#### ZERO_DOWNTIME_DEFERRED_SQL
+
+Define way to apply deferred sql, default `True`:
+
+    ZERO_DOWNTIME_DEFERRED_SQL = True
+
+Allowed values:
+- `True` - run deferred sql similar to default django way.
+- `False` - run deferred sql as soon as possible. 
 
 ## How it works
 
@@ -200,7 +210,7 @@ Regarding documentation https://www.postgresql.org/docs/current/static/mvcc-intr
 Any schema changes can be processed with creation of new table and copy data to it, but it can take significant time.
 
 |   # | name                                          | safe |       safe alternative        | description                                                                                                                                                                                                                                                                    |
-| --: | --------------------------------------------- | :--: | :---------------------------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| --: | --------------------------------------------- |:----:|:-----------------------------:|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 |   1 | `CREATE SEQUENCE`                             |  X   |                               | safe operation, because your business logic shouldn't operate with new sequence on migration time \*                                                                                                                                                                           |
 |   2 | `DROP SEQUENCE`                               |  X   |                               | safe operation, because your business logic shouldn't operate with this sequence on migration time \*                                                                                                                                                                          |
 |   3 | `CREATE TABLE`                                |  X   |                               | safe operation, because your business logic shouldn't operate with new table on migration time \*                                                                                                                                                                              |
@@ -213,7 +223,7 @@ Any schema changes can be processed with creation of new table and copy data to 
 |  10 | `ALTER TABLE ADD COLUMN PRIMARY KEY`          |      | add index and add constraint  | **unsafe operation**, because you spend time in migration to `CREATE INDEX`, so propose `ALTER TABLE ADD COLUMN` and then `CREATE INDEX CONCURRENTLY` and then `ALTER TABLE ADD CONSTRAINT PRIMARY KEY USING INDEX` \*\*\*                                                     |
 |  11 | `ALTER TABLE ADD COLUMN UNIQUE`               |      | add index and add constraint  | **unsafe operation**, because you spend time in migration to `CREATE INDEX`, so propose `ALTER TABLE ADD COLUMN` and then `CREATE INDEX CONCURRENTLY` and then `ALTER TABLE ADD CONSTRAINT UNIQUE USING INDEX` \*\*\*                                                          |
 |  12 | `ALTER TABLE ALTER COLUMN TYPE`               |      |              +/-              | **unsafe operation**, because you spend time in migration to check that all items in column valid or to change type, but some operations can be safe \*\*\*\*                                                                                                                  |
-|  13 | `ALTER TABLE ALTER COLUMN SET NOT NULL`       |      |              +/-              | **unsafe operation**, because you spend time in migration to check that all items in column `NOT NULL` \*\*                                                                                                                                                                    |
+|  13 | `ALTER TABLE ALTER COLUMN SET NOT NULL`       |      |  add check constraint before  | **unsafe operation**, because you spend time in migration to check that all items in column `NOT NULL`, so propose `ALTER TABLE ADD CONSTRAINT CHECK` and then `ALTER TABLE VALIDATE CONSTRAINT` and then `ALTER TABLE ALTER COLUMN SET NOT NULL` *\*                          |
 |  14 | `ALTER TABLE ALTER COLUMN DROP NOT NULL`      |  X   |                               | safe operation                                                                                                                                                                                                                                                                 |
 |  15 | `ALTER TABLE ALTER COLUMN SET DEFAULT`        |  X   |                               | safe operation                                                                                                                                                                                                                                                                 |
 |  16 | `ALTER TABLE ALTER COLUMN DROP DEFAULT`       |  X   |                               | safe operation                                                                                                                                                                                                                                                                 |

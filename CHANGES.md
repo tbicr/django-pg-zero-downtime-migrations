@@ -2,7 +2,10 @@
 
 ## 0.14
   - fix deferred sql errors
+  - add django 5.0 support
+  - add python 3.12 support
   - drop postgres 11 support
+  - drop `ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL` setting
   - mark `migrate_isnotnull_check_constraints` command deprecated
 
 ## 0.13
