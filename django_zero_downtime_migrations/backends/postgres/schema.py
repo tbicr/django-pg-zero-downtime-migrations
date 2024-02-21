@@ -5,7 +5,6 @@ from contextlib import contextmanager
 import django
 from django.conf import settings
 from django.contrib.postgres.constraints import ExclusionConstraint
-from django.db.backends.base.schema import BaseDatabaseSchemaEditor
 from django.db.backends.ddl_references import Statement
 from django.db.backends.postgresql.schema import (
     DatabaseSchemaEditor as PostgresDatabaseSchemaEditor
@@ -138,7 +137,7 @@ class PGShareUpdateExclusive(PGLock):
     pass
 
 
-class DatabaseSchemaEditorMixin(BaseDatabaseSchemaEditor):
+class DatabaseSchemaEditorMixin:
     ZERO_TIMEOUT = '0ms'
 
     sql_get_lock_timeout = "SELECT setting || unit FROM pg_settings WHERE name = 'lock_timeout'"
