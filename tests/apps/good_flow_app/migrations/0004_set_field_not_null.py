@@ -3,6 +3,11 @@
 from django.db import IntegrityError, migrations, models
 
 
+def flush_deferred_sql(apps, schema_editor):
+    for sql in schema_editor.deferred_sql:
+        schema_editor.execute(sql)
+
+
 def update_objects(apps, schema_editor):
     db_alias = schema_editor.connection.alias
     TestTable = apps.get_model('good_flow_app', 'TestTable')
@@ -37,5 +42,6 @@ class Migration(migrations.Migration):
             name='field',
             field=models.IntegerField(default=0),
         ),
+        migrations.RunPython(flush_deferred_sql, migrations.RunPython.noop),
         migrations.RunPython(insert_objects_and_not_null_check, migrations.RunPython.noop),
     ]

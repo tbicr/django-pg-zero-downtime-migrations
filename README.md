@@ -31,7 +31,6 @@ To enable zero downtime migrations for postgres just setup django backend provid
     ZERO_DOWNTIME_MIGRATIONS_STATEMENT_TIMEOUT = '2s'
     ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT = True
     ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE = True
-    ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL = False
 
 > _NOTE:_ this backend brings zero downtime improvements only for migrations (schema and `RunSQL` operations, but not for `RunPython` operation), for other purpose it works the same as standard django backend.
 
@@ -99,22 +98,6 @@ Set [`statement_timeout`](https://www.postgresql.org/docs/current/static/runtime
 Enabled option doesn't allow run potential unsafe migration, default `False`:
 
     ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE = True
-
-#### ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL
-
-Set policy for avoiding `NOT NULL` constraint creation long lock, default `None`:
-
-    ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL = 10 ** 7
-
-Allowed values:
-
-- `None` - standard django's behaviour (raise for `ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE = True`)
-- `True` - always replace `NOT NULL` constraint with `CHECK (field IS NOT NULL)` (don't raise for `ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE = True`)
-- `False` - always use `NOT NULL` constraint (don't raise for `ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE = True`)
-- `int` value - use `CHECK (field IS NOT NULL)` instead `NOT NULL` constraint if table has more than `value` rows (approximate rows count used) otherwise use `NOT NULL` constraint (don't raise for `ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE = True`)
-- `USE_PG_ATTRIBUTE_UPDATE_FOR_SUPERUSER` - use `pg_catalog.pg_attribute` update to mark column `NOT NULL` and provide same state as default django backend (don't raise for `ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE = True`).
-
-> _NOTE:_ For postgres 12 and newest `NOT NULL` constraint creation has migration replacement that provide same state as default django backend, so this option deprecated and doesn't used this postgres version. If you use `CHECK NOT NULL` compatible constraint before you can migrate it to `NOT NULL` constraints with `manage.py migrate_isnotnull_check_constraints` management command (add `INSTALLED_APPS += ['django_zero_downtime_migrations']` to `settings.py` to use management command).
 
 ## How it works
 

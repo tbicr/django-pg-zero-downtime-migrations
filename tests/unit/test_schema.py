@@ -1,4 +1,4 @@
-from functools import partial, wraps
+from functools import partial
 
 import django
 from django.conf import settings
@@ -22,8 +22,6 @@ from django_zero_downtime_migrations.backends.postgres.schema import (
 DatabaseSchemaEditor = import_string(settings.DATABASES['default']['ENGINE'] + '.schema.DatabaseSchemaEditor')
 
 
-PG_VERSION_12 = 120000
-PG_VERSION_11 = 110000
 START_TIMEOUTS = [
     'SET statement_timeout TO \'0\';',
     'SET lock_timeout TO \'0\';',
@@ -52,19 +50,6 @@ def flexible_statement_timeout(statements):
     return START_FLEXIBLE_STATEMENT_TIMEOUT + statements + END_FLEXIBLE_STATEMENT_TIMEOUT
 
 
-def old_pg(func):
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        old = connection.pg_version
-        connection.pg_version = PG_VERSION_11
-        try:
-            result = func(*args, **kwargs)
-        finally:
-            connection.pg_version = old
-        return result
-    return wrapper
-
-
 class Model(models.Model):
     field1 = models.IntegerField()
     field2 = models.IntegerField()
@@ -74,7 +59,6 @@ class Model2(models.Model):
     pass
 
 
-connection.pg_version = PG_VERSION_12
 schema_editor = partial(DatabaseSchemaEditor, connection=connection, collect_sql=True)
 
 
@@ -273,157 +257,22 @@ def test_add_field_with_not_null__warning():
 
 
 @pytest.mark.django_db
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
+def test_add_field_with_not_null__with_flexible_timeout__warning():
+    with cmp_schema_editor() as editor:
+        with pytest.warns(UnsafeOperationWarning, match='ADD COLUMN NOT NULL is unsafe operation'):
+            field = models.CharField(max_length=40, null=False)
+            field.set_attributes_from_name('field')
+            editor.add_field(Model, field)
+    assert editor.collected_sql == timeouts(editor.django_sql)
+    assert editor.django_sql == [
+        'ALTER TABLE "tests_model" ADD COLUMN "field" varchar(40) NOT NULL;',
+    ]
+
+
+@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_add_field_with_not_null__raise():
-    with cmp_schema_editor() as editor:
-        with pytest.raises(UnsafeOperationException, match='ADD COLUMN NOT NULL is unsafe operation'):
-            field = models.CharField(max_length=40, null=False)
-            field.set_attributes_from_name('field')
-            editor.add_field(Model, field)
-    assert editor.django_sql == [
-        'ALTER TABLE "tests_model" ADD COLUMN "field" varchar(40) NOT NULL;',
-    ]
-
-
-@pytest.mark.django_db
-@override_settings(ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=True)
-def test_add_field_with_not_null__allowed_for_all_tables__warning():
-    with cmp_schema_editor() as editor:
-        with pytest.warns(UnsafeOperationWarning, match='ADD COLUMN NOT NULL is unsafe operation'):
-            field = models.CharField(max_length=40, null=False)
-            field.set_attributes_from_name('field')
-            editor.add_field(Model, field)
-    assert editor.collected_sql == timeouts(editor.django_sql)
-    assert editor.django_sql == [
-        'ALTER TABLE "tests_model" ADD COLUMN "field" varchar(40) NOT NULL;',
-    ]
-
-
-@pytest.mark.django_db
-@override_settings(ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=10)
-def test_add_field_with_not_null__allowed_for_small_tables__warning(cursor, mocker):
-    mocker.patch.object(cursor, 'fetchone').return_value = (5,)
-    with cmp_schema_editor() as editor:
-        with pytest.warns(UnsafeOperationWarning, match='ADD COLUMN NOT NULL is unsafe operation'):
-            field = models.CharField(max_length=40, null=False)
-            field.set_attributes_from_name('field')
-            editor.add_field(Model, field)
-    assert editor.collected_sql == timeouts(editor.django_sql)
-    assert editor.django_sql == [
-        'ALTER TABLE "tests_model" ADD COLUMN "field" varchar(40) NOT NULL;',
-    ]
-
-
-@pytest.mark.django_db
-@override_settings(ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=1)
-def test_add_field_with_not_null__use_compatible_constraint_for_large_tables__warning(cursor, mocker):
-    mocker.patch.object(cursor, 'fetchone').return_value = (5,)
-    with cmp_schema_editor() as editor:
-        with pytest.warns(UnsafeOperationWarning, match='ADD COLUMN NOT NULL is unsafe operation'):
-            field = models.CharField(max_length=40, null=False)
-            field.set_attributes_from_name('field')
-            editor.add_field(Model, field)
-    assert editor.collected_sql == timeouts(editor.django_sql)
-    assert editor.django_sql == [
-        'ALTER TABLE "tests_model" ADD COLUMN "field" varchar(40) NOT NULL;',
-    ]
-
-
-@pytest.mark.django_db
-@override_settings(ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=1,
-                   ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
-def test_add_field_with_not_null__use_compatible_constraint_for_large_tables__with_flexible_timeout__warning(
-    cursor, mocker
-):
-    mocker.patch.object(cursor, 'fetchone').return_value = (5,)
-    with cmp_schema_editor() as editor:
-        with pytest.warns(UnsafeOperationWarning, match='ADD COLUMN NOT NULL is unsafe operation'):
-            field = models.CharField(max_length=40, null=False)
-            field.set_attributes_from_name('field')
-            editor.add_field(Model, field)
-    assert editor.collected_sql == timeouts(editor.django_sql)
-    assert editor.django_sql == [
-        'ALTER TABLE "tests_model" ADD COLUMN "field" varchar(40) NOT NULL;',
-    ]
-
-
-@pytest.mark.django_db
-@override_settings(ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=False)
-def test_add_field_with_not_null__use_compatible_constraint_for_all_tables__warning():
-    with cmp_schema_editor() as editor:
-        with pytest.warns(UnsafeOperationWarning, match='ADD COLUMN NOT NULL is unsafe operation'):
-            field = models.CharField(max_length=40, null=False)
-            field.set_attributes_from_name('field')
-            editor.add_field(Model, field)
-    assert editor.collected_sql == timeouts(editor.django_sql)
-    assert editor.django_sql == [
-        'ALTER TABLE "tests_model" ADD COLUMN "field" varchar(40) NOT NULL;',
-    ]
-
-
-@pytest.mark.django_db
-@override_settings(ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=False,
-                   ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
-def test_add_field_with_not_null__use_compatible_constraint_for_all_tables__with_flexible_timeout__warning():
-    with cmp_schema_editor() as editor:
-        with pytest.warns(UnsafeOperationWarning, match='ADD COLUMN NOT NULL is unsafe operation'):
-            field = models.CharField(max_length=40, null=False)
-            field.set_attributes_from_name('field')
-            editor.add_field(Model, field)
-    assert editor.collected_sql == timeouts(editor.django_sql)
-    assert editor.django_sql == [
-        'ALTER TABLE "tests_model" ADD COLUMN "field" varchar(40) NOT NULL;',
-    ]
-
-
-@pytest.mark.django_db
-@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
-                   ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=True)
-def test_add_field_with_not_null__allowed_for_all_tables__raise():
-    with cmp_schema_editor() as editor:
-        with pytest.raises(UnsafeOperationException, match='ADD COLUMN NOT NULL is unsafe operation'):
-            field = models.CharField(max_length=40, null=False)
-            field.set_attributes_from_name('field')
-            editor.add_field(Model, field)
-    assert editor.django_sql == [
-        'ALTER TABLE "tests_model" ADD COLUMN "field" varchar(40) NOT NULL;',
-    ]
-
-
-@pytest.mark.django_db
-@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
-                   ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=10)
-def test_add_field_with_not_null__allowed_for_small_tables__raise(cursor, mocker):
-    mocker.patch.object(cursor, 'fetchone').return_value = (5,)
-    with cmp_schema_editor() as editor:
-        with pytest.raises(UnsafeOperationException, match='ADD COLUMN NOT NULL is unsafe operation'):
-            field = models.CharField(max_length=40, null=False)
-            field.set_attributes_from_name('field')
-            editor.add_field(Model, field)
-    assert editor.django_sql == [
-        'ALTER TABLE "tests_model" ADD COLUMN "field" varchar(40) NOT NULL;',
-    ]
-
-
-@pytest.mark.django_db
-@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
-                   ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=1)
-def test_add_field_with_not_null__use_compatible_constraint_for_large_tables__raise(cursor, mocker):
-    mocker.patch.object(cursor, 'fetchone').return_value = (5,)
-    with cmp_schema_editor() as editor:
-        with pytest.raises(UnsafeOperationException, match='ADD COLUMN NOT NULL is unsafe operation'):
-            field = models.CharField(max_length=40, null=False)
-            field.set_attributes_from_name('field')
-            editor.add_field(Model, field)
-    assert editor.django_sql == [
-        'ALTER TABLE "tests_model" ADD COLUMN "field" varchar(40) NOT NULL;',
-    ]
-
-
-@pytest.mark.django_db
-@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
-                   ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=False)
-def test_add_field_with_not_null__use_compatible_constraint_for_all_tables__raise():
     with cmp_schema_editor() as editor:
         with pytest.raises(UnsafeOperationException, match='ADD COLUMN NOT NULL is unsafe operation'):
             field = models.CharField(max_length=40, null=False)
@@ -1095,227 +944,6 @@ def test_alter_field_set_not_null__with_flexible_timeout__ok():
 
 
 @pytest.mark.django_db
-@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
-                   ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL='USE_PG_ATTRIBUTE_UPDATE_FOR_SUPERUSER')
-@old_pg
-def test_alter_field_set_not_null__old_pg__use_pg_attribute_update__ok():
-    with cmp_schema_editor() as editor:
-        old_field = models.CharField(max_length=40, null=True)
-        old_field.set_attributes_from_name('field')
-        new_field = models.CharField(max_length=40, null=False)
-        new_field.set_attributes_from_name('field')
-        editor.alter_field(Model, old_field, new_field)
-    assert editor.collected_sql == timeouts(
-        'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_0a53d95f_notnull" '
-        'CHECK ("field" IS NOT NULL) NOT VALID;',
-    ) + [
-        'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_0a53d95f_notnull";',
-    ] + [
-        'UPDATE pg_catalog.pg_attribute SET attnotnull = TRUE '
-        'WHERE attrelid = \'"tests_model"\'::regclass::oid AND attname = replace(\'"field"\', \'"\', \'\');',
-    ] + timeouts(
-        'ALTER TABLE "tests_model" DROP CONSTRAINT "tests_model_field_0a53d95f_notnull";'
-    )
-    assert editor.django_sql == [
-        'ALTER TABLE "tests_model" ALTER COLUMN "field" SET NOT NULL;',
-    ]
-
-
-@pytest.mark.django_db
-@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
-                   ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL='USE_PG_ATTRIBUTE_UPDATE_FOR_SUPERUSER',
-                   ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
-@old_pg
-def test_alter_field_set_not_null__old_pg__use_pg_attribute_update__with_flexible_timeout__ok():
-    with cmp_schema_editor() as editor:
-        old_field = models.CharField(max_length=40, null=True)
-        old_field.set_attributes_from_name('field')
-        new_field = models.CharField(max_length=40, null=False)
-        new_field.set_attributes_from_name('field')
-        editor.alter_field(Model, old_field, new_field)
-    assert editor.collected_sql == timeouts(
-        'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_0a53d95f_notnull" '
-        'CHECK ("field" IS NOT NULL) NOT VALID;',
-    ) + flexible_statement_timeout(
-        'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_0a53d95f_notnull";',
-    ) + [
-        'UPDATE pg_catalog.pg_attribute SET attnotnull = TRUE '
-        'WHERE attrelid = \'"tests_model"\'::regclass::oid AND attname = replace(\'"field"\', \'"\', \'\');',
-    ] + timeouts(
-        'ALTER TABLE "tests_model" DROP CONSTRAINT "tests_model_field_0a53d95f_notnull";'
-    )
-    assert editor.django_sql == [
-        'ALTER TABLE "tests_model" ALTER COLUMN "field" SET NOT NULL;',
-    ]
-
-
-@pytest.mark.django_db
-@old_pg
-def test_alter_field_set_not_null__old_pg__warning():
-    with cmp_schema_editor() as editor:
-        with pytest.warns(UnsafeOperationWarning, match='ALTER COLUMN NOT NULL is unsafe operation'):
-            old_field = models.CharField(max_length=40, null=True)
-            old_field.set_attributes_from_name('field')
-            new_field = models.CharField(max_length=40, null=False)
-            new_field.set_attributes_from_name('field')
-            editor.alter_field(Model, old_field, new_field)
-    assert editor.collected_sql == timeouts(editor.django_sql)
-    assert editor.django_sql == [
-        'ALTER TABLE "tests_model" ALTER COLUMN "field" SET NOT NULL;',
-    ]
-
-
-@pytest.mark.django_db
-@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
-@old_pg
-def test_alter_field_set_not_null__old_pg__raise():
-    with cmp_schema_editor() as editor:
-        with pytest.raises(UnsafeOperationException, match='ALTER COLUMN NOT NULL is unsafe operation'):
-            old_field = models.CharField(max_length=40, null=True)
-            old_field.set_attributes_from_name('field')
-            new_field = models.CharField(max_length=40, null=False)
-            new_field.set_attributes_from_name('field')
-            editor.alter_field(Model, old_field, new_field)
-    assert editor.django_sql == [
-        'ALTER TABLE "tests_model" ALTER COLUMN "field" SET NOT NULL;',
-    ]
-
-
-@pytest.mark.django_db
-@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
-                   ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=True)
-@old_pg
-def test_alter_field_set_not_null__old_pg__allowed_for_all_tables__warning():
-    with cmp_schema_editor() as editor:
-        with pytest.warns(UnsafeOperationWarning, match='ALTER COLUMN NOT NULL is unsafe operation'):
-            old_field = models.CharField(max_length=40, null=True)
-            old_field.set_attributes_from_name('field')
-            new_field = models.CharField(max_length=40, null=False)
-            new_field.set_attributes_from_name('field')
-            editor.alter_field(Model, old_field, new_field)
-    assert editor.collected_sql == timeouts(editor.django_sql)
-    assert editor.django_sql == [
-        'ALTER TABLE "tests_model" ALTER COLUMN "field" SET NOT NULL;',
-    ]
-
-
-@pytest.mark.django_db
-@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
-                   ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=10)
-@old_pg
-def test_alter_field_set_not_null__old_pg__allowed_for_small_tables__warning(cursor, mocker):
-    mocker.patch.object(cursor, 'execute')
-    mocker.patch.object(cursor, 'fetchone').return_value = (5,)
-    with cmp_schema_editor() as editor:
-        with pytest.warns(UnsafeOperationWarning, match='ALTER COLUMN NOT NULL is unsafe operation'):
-            old_field = models.CharField(max_length=40, null=True)
-            old_field.set_attributes_from_name('field')
-            new_field = models.CharField(max_length=40, null=False)
-            new_field.set_attributes_from_name('field')
-            editor.alter_field(Model, old_field, new_field)
-    assert editor.collected_sql == timeouts(editor.django_sql)
-    assert editor.django_sql == [
-        'ALTER TABLE "tests_model" ALTER COLUMN "field" SET NOT NULL;',
-    ]
-
-
-@pytest.mark.django_db
-@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
-                   ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=1)
-@old_pg
-def test_alter_field_set_not_null__old_pg__use_compatible_constraint_for_large_tables__ok(cursor, mocker):
-    mocker.patch.object(cursor, 'execute')
-    mocker.patch.object(cursor, 'fetchone').return_value = (5,)
-    with cmp_schema_editor() as editor:
-        old_field = models.CharField(max_length=40, null=True)
-        old_field.set_attributes_from_name('field')
-        new_field = models.CharField(max_length=40, null=False)
-        new_field.set_attributes_from_name('field')
-        editor.alter_field(Model, old_field, new_field)
-    assert editor.collected_sql == timeouts(
-        'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_0a53d95f_notnull" '
-        'CHECK ("field" IS NOT NULL) NOT VALID;',
-    ) + [
-        'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_0a53d95f_notnull";',
-    ]
-    assert editor.django_sql == [
-        'ALTER TABLE "tests_model" ALTER COLUMN "field" SET NOT NULL;',
-    ]
-
-
-@pytest.mark.django_db
-@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
-                   ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=1,
-                   ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
-@old_pg
-def test_alter_field_set_not_null__old_pg__use_compatible_constraint_for_large_tables__with_flexible_timeout__ok(
-    cursor, mocker
-):
-    mocker.patch.object(cursor, 'execute')
-    mocker.patch.object(cursor, 'fetchone').return_value = (5,)
-    with cmp_schema_editor() as editor:
-        old_field = models.CharField(max_length=40, null=True)
-        old_field.set_attributes_from_name('field')
-        new_field = models.CharField(max_length=40, null=False)
-        new_field.set_attributes_from_name('field')
-        editor.alter_field(Model, old_field, new_field)
-    assert editor.collected_sql == timeouts(
-        'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_0a53d95f_notnull" '
-        'CHECK ("field" IS NOT NULL) NOT VALID;',
-    ) + flexible_statement_timeout(
-        'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_0a53d95f_notnull";',
-    )
-    assert editor.django_sql == [
-        'ALTER TABLE "tests_model" ALTER COLUMN "field" SET NOT NULL;',
-    ]
-
-
-@pytest.mark.django_db
-@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
-                   ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=False)
-@old_pg
-def test_alter_field_set_not_null__old_pg__use_compatible_constraint_for_all_tables__ok():
-    with cmp_schema_editor() as editor:
-        old_field = models.CharField(max_length=40, null=True)
-        old_field.set_attributes_from_name('field')
-        new_field = models.CharField(max_length=40, null=False)
-        new_field.set_attributes_from_name('field')
-        editor.alter_field(Model, old_field, new_field)
-    assert editor.collected_sql == timeouts(
-        'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_0a53d95f_notnull" '
-        'CHECK ("field" IS NOT NULL) NOT VALID;',
-    ) + [
-        'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_0a53d95f_notnull";',
-    ]
-    assert editor.django_sql == [
-        'ALTER TABLE "tests_model" ALTER COLUMN "field" SET NOT NULL;',
-    ]
-
-
-@pytest.mark.django_db
-@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
-                   ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL=False,
-                   ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
-@old_pg
-def test_alter_field_set_not_null__old_pg__use_compatible_constraint_for_all_tables__with_flexible_timeout__ok():
-    with cmp_schema_editor() as editor:
-        old_field = models.CharField(max_length=40, null=True)
-        old_field.set_attributes_from_name('field')
-        new_field = models.CharField(max_length=40, null=False)
-        new_field.set_attributes_from_name('field')
-        editor.alter_field(Model, old_field, new_field)
-    assert editor.collected_sql == timeouts(
-        'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_0a53d95f_notnull" '
-        'CHECK ("field" IS NOT NULL) NOT VALID;',
-    ) + flexible_statement_timeout(
-        'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_0a53d95f_notnull";',
-    )
-    assert editor.django_sql == [
-        'ALTER TABLE "tests_model" ALTER COLUMN "field" SET NOT NULL;',
-    ]
-
-
-@pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_alter_filed_drop_not_null__ok(cursor, mocker):
     mocker.patch.object(cursor, 'execute')
@@ -1327,27 +955,6 @@ def test_alter_filed_drop_not_null__ok(cursor, mocker):
         new_field.set_attributes_from_name('field')
         editor.alter_field(Model, old_field, new_field)
     assert editor.collected_sql == timeouts(editor.django_sql)
-    assert editor.django_sql == [
-        'ALTER TABLE "tests_model" ALTER COLUMN "field" DROP NOT NULL;',
-    ]
-
-
-@pytest.mark.django_db
-@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
-def test_alter_filed_drop_not_null_constraint__ok(cursor, mocker):
-    mocker.patch.object(cursor, 'execute')
-    mocker.patch.object(cursor, 'fetchone').return_value = (
-        'tests_model_field_0a53d95f_notnull',
-    )
-    with cmp_schema_editor() as editor:
-        old_field = models.CharField(max_length=40, null=False)
-        old_field.set_attributes_from_name('field')
-        new_field = models.CharField(max_length=40, null=True)
-        new_field.set_attributes_from_name('field')
-        editor.alter_field(Model, old_field, new_field)
-    assert editor.collected_sql == timeouts(
-        'ALTER TABLE "tests_model" DROP CONSTRAINT tests_model_field_0a53d95f_notnull;',
-    )
     assert editor.django_sql == [
         'ALTER TABLE "tests_model" ALTER COLUMN "field" DROP NOT NULL;',
     ]
