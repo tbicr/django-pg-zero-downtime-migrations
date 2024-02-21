@@ -1695,6 +1695,7 @@ def test_add_meta_unique_constraint_nulls_not_distinct_fields__ok():
         'ALTER TABLE "tests_model" ADD CONSTRAINT "field1_uniq" UNIQUE NULLS NOT DISTINCT ("field1");',
     ]
 
+
 @pytest.mark.django_db
 @pytest.mark.skipif(django.VERSION[:2] < (5, 0), reason='functionality provided in django 5.0')
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
