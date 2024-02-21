@@ -1672,7 +1672,7 @@ def test_add_meta_unique_constraint_nulls_distinct__ok():
         'UNIQUE USING INDEX "field1_uniq";',
     )
     assert editor.django_sql == [
-        'ALTER TABLE "tests_model" ADD CONSTRAINT "field1_uniq" UNIQUE ("field1");',
+        'ALTER TABLE "tests_model" ADD CONSTRAINT "field1_uniq" UNIQUE NULLS DISTINCT ("field1");',
     ]
 
 
@@ -1692,7 +1692,7 @@ def test_add_meta_unique_constraint_nulls_not_distinct__ok():
         'UNIQUE USING INDEX "field1_uniq";',
     )
     assert editor.django_sql == [
-        'ALTER TABLE "tests_model" ADD CONSTRAINT "field1_uniq" UNIQUE ("field1");',
+        'ALTER TABLE "tests_model" ADD CONSTRAINT "field1_uniq" UNIQUE NULLS NOT DISTINCT ("field1");',
     ]
 
 
