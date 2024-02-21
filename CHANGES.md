@@ -1,12 +1,13 @@
 # django-pg-zero-downtime-migrations changelog
 
 ## 0.14
-  - fix deferred sql errors
-  - add django 5.0 support
-  - add python 3.12 support
+  - fixed deferred sql errors
+  - added django 5.0 support
+  - added python 3.12 support
+  - added postgres 16 support
   - drop postgres 11 support
   - drop `ZERO_DOWNTIME_MIGRATIONS_USE_NOT_NULL` setting
-  - mark `migrate_isnotnull_check_constraints` command deprecated
+  - marked `migrate_isnotnull_check_constraints` command deprecated
 
 ## 0.13
   - added django 4.2 support
