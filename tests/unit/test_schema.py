@@ -1659,7 +1659,7 @@ def test_add_meta_conditional_multicolumn_unique_constraint__ok():
 @pytest.mark.django_db
 @pytest.mark.skipif(django.VERSION[:2] < (5, 0), reason='functionality provided in django 5.0')
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
-def test_add_meta_unique_constraint_nulls_distinct__ok():
+def test_add_meta_unique_constraint_nulls_distinct_fields__ok():
     with cmp_schema_editor() as editor:
         editor.add_constraint(
             Model,
@@ -1679,7 +1679,7 @@ def test_add_meta_unique_constraint_nulls_distinct__ok():
 @pytest.mark.django_db
 @pytest.mark.skipif(django.VERSION[:2] < (5, 0), reason='functionality provided in django 5.0')
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
-def test_add_meta_unique_constraint_nulls_not_distinct__ok():
+def test_add_meta_unique_constraint_nulls_not_distinct_fields__ok():
     with cmp_schema_editor() as editor:
         editor.add_constraint(
             Model,
@@ -1693,6 +1693,39 @@ def test_add_meta_unique_constraint_nulls_not_distinct__ok():
     )
     assert editor.django_sql == [
         'ALTER TABLE "tests_model" ADD CONSTRAINT "field1_uniq" UNIQUE NULLS NOT DISTINCT ("field1");',
+    ]
+
+@pytest.mark.django_db
+@pytest.mark.skipif(django.VERSION[:2] < (5, 0), reason='functionality provided in django 5.0')
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_add_meta_unique_constraint_nulls_distinct_expression__ok():
+    with cmp_schema_editor() as editor:
+        editor.add_constraint(
+            Model,
+            models.UniqueConstraint(models.F('field1'), name='field1_uniq', nulls_distinct=True),
+        )
+    assert editor.collected_sql == [
+        'CREATE UNIQUE INDEX CONCURRENTLY "field1_uniq" ON "tests_model" ("field1") NULLS DISTINCT;',
+    ]
+    assert editor.django_sql == [
+        'CREATE UNIQUE INDEX "field1_uniq" ON "tests_model" ("field1") NULLS DISTINCT;',
+    ]
+
+
+@pytest.mark.django_db
+@pytest.mark.skipif(django.VERSION[:2] < (5, 0), reason='functionality provided in django 5.0')
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_add_meta_unique_constraint_nulls_not_distinct_expression__ok():
+    with cmp_schema_editor() as editor:
+        editor.add_constraint(
+            Model,
+            models.UniqueConstraint(models.F('field1'), name='field1_uniq', nulls_distinct=False),
+        )
+    assert editor.collected_sql == [
+        'CREATE UNIQUE INDEX CONCURRENTLY "field1_uniq" ON "tests_model" ("field1") NULLS NOT DISTINCT;',
+    ]
+    assert editor.django_sql == [
+        'CREATE UNIQUE INDEX "field1_uniq" ON "tests_model" ("field1") NULLS NOT DISTINCT;',
     ]
 
 
