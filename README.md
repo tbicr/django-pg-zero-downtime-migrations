@@ -107,7 +107,11 @@ Define way to apply deferred sql, default `True`:
 
 Allowed values:
 - `True` - run deferred sql similar to default django way.
-- `False` - run deferred sql as soon as possible. 
+- `False` - run deferred sql as soon as possible.
+
+#### PgBouncer and timeouts
+
+In case you using [PgBouncer](https://www.pgbouncer.org/) and expect timeouts will work as expected you need make sure that run migrations using [session pool_mode](https://www.pgbouncer.org/config.html#pool_mode).
 
 ## How it works
 
