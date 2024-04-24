@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.core.management import call_command
 from django.db import IntegrityError, connection
 from django.test import modify_settings
 
@@ -7,7 +8,6 @@ import pytest
 from django_zero_downtime_migrations.management.commands.migrate_isnotnull_check_constraints import (
     Command as MigrateNotNullCommand
 )
-from tests.integration import migrate
 
 
 def run_management_command(params=None):
@@ -46,7 +46,7 @@ def assert_constraints(null, check):
 @pytest.mark.django_db(transaction=True)
 @modify_settings(INSTALLED_APPS={'append': 'tests.apps.old_notnull_check_constraint_migration_app'})
 def test_migrate_isnotnull_check_constraints():
-    migrate()
+    call_command("migrate")
     assert_constraints(null=0, check=1)
     run_management_command()
     assert_constraints(null=1, check=0)

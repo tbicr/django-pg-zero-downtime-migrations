@@ -1,6 +1,7 @@
 # django-pg-zero-downtime-migrations changelog
 
 ## 0.15
+  - added idempotent mode and `ZERO_DOWNTIME_MIGRATIONS_IDEMPOTENT_SQL` setting
   - fixed django 3.2 degradation with missing `skip_default_on_alter` method
 
 ## 0.14
