@@ -93,6 +93,8 @@ DATABASES = {
         'PORT': os.getenv('DB_PORT', '5432'),
     },
 }
+DB_SUPER_USER = os.getenv('DB_SUPER_USER', DATABASES['default']['USER'])
+DB_SUPER_PASSWORD = os.getenv('DB_SUPER_PASSWORD', os.getenv('DB_SUPER_USER', DATABASES['default']['PASSWORD']))
 
 # Password validation
 # https://docs.djangoproject.com/en/2.0/ref/settings/#auth-password-validators

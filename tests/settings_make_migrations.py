@@ -1,7 +1,7 @@
 from .settings import *  # noqa: F401, F403
 
 INSTALLED_APPS += [  # noqa: F405
-    'tests.apps.good_flow_alter_table_with_same_name_db_table',
+    'tests.apps.good_flow_alter_table_with_same_db_table',
     'tests.apps.good_flow_app',
     'tests.apps.good_flow_app_concurrently',
     'tests.apps.bad_rollback_flow_drop_column_with_notnull_default_app',
@@ -12,4 +12,18 @@ INSTALLED_APPS += [  # noqa: F405
     'tests.apps.bad_flow_add_column_with_notnull_app',
     'tests.apps.bad_flow_change_char_type_that_unsafe_app',
     'tests.apps.old_notnull_check_constraint_migration_app',
+    'tests.apps.idempotency_create_table_app',
+    'tests.apps.idempotency_add_column_app',
+    'tests.apps.idempotency_add_column_foreign_key_app',
+    'tests.apps.idempotency_add_column_one_to_one_app',
+    'tests.apps.idempotency_set_not_null_app',
+    'tests.apps.idempotency_add_check_app',
+    'tests.apps.idempotency_add_foreign_key_app',
+    'tests.apps.idempotency_add_one_to_one_app',
+    'tests.apps.idempotency_add_index_app',
+    'tests.apps.idempotency_add_index_meta_app',
+    'tests.apps.idempotency_add_unique_app',
+    'tests.apps.idempotency_add_unique_meta_app',
+    'tests.apps.idempotency_add_primary_key_app',
+    'tests.apps.idempotency_add_auto_field_app',
 ]

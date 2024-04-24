@@ -106,8 +106,23 @@ Define way to apply deferred sql, default `True`:
     ZERO_DOWNTIME_DEFERRED_SQL = True
 
 Allowed values:
-- `True` - run deferred sql similar to default django way.
-- `False` - run deferred sql as soon as possible.
+- `True` - run deferred sql similar to default django way
+- `False` - run deferred sql as soon as possible
+
+#### ZERO_DOWNTIME_MIGRATIONS_IDEMPOTENT_SQL
+
+Define idempotent mode, default `False`:
+
+    ZERO_DOWNTIME_MIGRATIONS_IDEMPOTENT_SQL = False
+
+Allowed values:
+- `True` - skip already applied sql migrations
+- `False` - standard non atomic django behaviour
+
+As this backend doesn't use transactions for migrations any failed migration can be cause of stopped process in intermediate state.
+To avoid manual schema manipulation idempotent mode allows to rerun failed migration after fixed issue (eg. data issue or long running CRUD queries).
+
+> _NOTE:_ idempotent mode checks rely only on name and index and constraint valid state, so it can ignore name collisions and recommended do not use it for CI checks.
 
 #### PgBouncer and timeouts
 
