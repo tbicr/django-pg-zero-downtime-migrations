@@ -432,6 +432,14 @@ class DatabaseSchemaEditorMixin:
             self.deferred_sql.append(self._create_unique_sql(model, [field.column]))
         return ""
 
+    if django.VERSION[:2] <= (3, 2):
+        def skip_default_on_alter(self, field):
+            """
+            Some backends don't accept default values for certain columns types
+            (i.e. MySQL longtext and longblob) in the ALTER COLUMN statement.
+            """
+            return False
+
     def column_sql(self, model, field, include_default=False):
         """
         Take a field and return its column definition.
