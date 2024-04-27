@@ -1,5 +1,8 @@
 # django-pg-zero-downtime-migrations changelog
 
+## 0.15
+  - fixed django 3.2 degradation with missing `skip_default_on_alter` method
+
 ## 0.14
   - fixed deferred sql errors
   - added django 5.0 support
