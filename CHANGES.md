@@ -6,6 +6,7 @@
   - added `ZERO_DOWNTIME_MIGRATIONS_KEEP_DEFAULT` settings and changed `ADD COLUMN DEFAULT NOT NULL` with this settings to safe operation for django<5.0
   - updated unsafe migrations links to documentation
   - updated patched code to latest django version
+  - updated test image to ubuntu 24.04
   - improved README
 
 ## 0.15
