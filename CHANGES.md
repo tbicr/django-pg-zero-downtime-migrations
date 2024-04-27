@@ -7,6 +7,7 @@
   - fixed sqlmigrate in idempotent mode
   - updated unsafe migrations links to documentation
   - updated patched code to latest django version
+  - updated test image to ubuntu 24.04
   - improved README
 
 ## 0.15
