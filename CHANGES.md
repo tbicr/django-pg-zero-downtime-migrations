@@ -4,6 +4,7 @@
   - added idempotent mode and `ZERO_DOWNTIME_MIGRATIONS_IDEMPOTENT_SQL` setting
   - fixed django 3.2 degradation with missing `skip_default_on_alter` method
   - improved readme
+  - updated release github action
 
 ## 0.14
   - fixed deferred sql errors
