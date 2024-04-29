@@ -234,7 +234,7 @@ Any schema changes can be processed with creation of new table and copy data to 
 |   2 | `DROP SEQUENCE`                               |  X   |                               | safe operation, because your business logic shouldn't operate with this sequence on migration time \*                                                                                                                                                                          |
 |   3 | `CREATE TABLE`                                |  X   |                               | safe operation, because your business logic shouldn't operate with new table on migration time \*                                                                                                                                                                              |
 |   4 | `DROP TABLE`                                  |  X   |                               | safe operation, because your business logic shouldn't operate with this table on migration time \*                                                                                                                                                                             |
-|   5 | `ALTER TABLE RENAME TO`                       |      |  add new table and copy data  | **unsafe operation**, it's too hard write business logic that operate with two tables simultaneously, so propose `CREATE TABLE` and then copy all data to new table \*                                                                                                         |
+|   5 | `ALTER TABLE RENAME TO`                       |      |      use updatable view       | **unsafe operation**, because it's too hard write business logic that operate with two tables simultaneously, so propose to use temporary updatable view and switch names in transaction \*                                                                                    |
 |   6 | `ALTER TABLE SET TABLESPACE`                  |      |  add new table and copy data  | **unsafe operation**, but probably you don't need it at all or often \*                                                                                                                                                                                                        |
 |   7 | `ALTER TABLE ADD COLUMN`                      |  X   |                               | safe operation if without `SET NOT NULL`, `SET DEFAULT`, `PRIMARY KEY`, `UNIQUE` \*                                                                                                                                                                                            |
 |   8 | `ALTER TABLE ADD COLUMN SET DEFAULT`          |      |  add column and set default   | **unsafe operation**, because you spend time in migration to populate all values in table, so propose `ALTER TABLE ADD COLUMN` and then populate column and then `SET DEFAULT` \*                                                                                              |
@@ -247,7 +247,7 @@ Any schema changes can be processed with creation of new table and copy data to 
 |  15 | `ALTER TABLE ALTER COLUMN SET DEFAULT`        |  X   |                               | safe operation                                                                                                                                                                                                                                                                 |
 |  16 | `ALTER TABLE ALTER COLUMN DROP DEFAULT`       |  X   |                               | safe operation                                                                                                                                                                                                                                                                 |
 |  17 | `ALTER TABLE DROP COLUMN`                     |  X   |                               | safe operation, because your business logic shouldn't operate with this column on migration time, however better `ALTER TABLE ALTER COLUMN DROP NOT NULL`, `ALTER TABLE DROP CONSTRAINT` and `DROP INDEX` before \* and \*\*\*\*\*                                             |
-|  18 | `ALTER TABLE RENAME COLUMN`                   |      | add new column and copy data  | **unsafe operation**, it's too hard write business logic that operate with two columns simultaneously, so propose `ALTER TABLE CREATE COLUMN` and then copy all data to new column \*                                                                                          |
+|  18 | `ALTER TABLE RENAME COLUMN`                   |      |      use updatable view       | **unsafe operation**, because it's too hard write business logic that operate with two columns simultaneously, so propose to use temporary updatable view and switch names in transaction \*                                                                                   |
 |  19 | `ALTER TABLE ADD CONSTRAINT CHECK`            |      | add as not valid and validate | **unsafe operation**, because you spend time in migration to check constraint                                                                                                                                                                                                  |
 |  20 | `ALTER TABLE DROP CONSTRAINT` (`CHECK`)       |  X   |                               | safe operation                                                                                                                                                                                                                                                                 |
 |  21 | `ALTER TABLE ADD CONSTRAINT FOREIGN KEY`      |      | add as not valid and validate | **unsafe operation**, because you spend time in migration to check constraint, lock two tables                                                                                                                                                                                 |
@@ -263,7 +263,7 @@ Any schema changes can be processed with creation of new table and copy data to 
 |  31 | `CREATE INDEX CONCURRENTLY`                   |  X   |                               | safe operation                                                                                                                                                                                                                                                                 |
 |  32 | `DROP INDEX CONCURRENTLY`                     |  X   |                               | safe operation \*\*\*                                                                                                                                                                                                                                                          |
 
-\*: main point with migration on production without downtime that your code should correctly work before and after migration, lets look this point closely in [Dealing with logic that should work before and after migration](#dealing-with-logic-that-should-work-before-and-after-migration) section.
+\*: main point with migration on production without downtime that your old and new code should correctly work before and after migration, lets look this point closely in [Dealing with logic that should work before and after migration](#dealing-with-logic-that-should-work-before-and-after-migration) section.
 
 \*\*: postgres will check that all items in column `NOT NULL` that take time, lets look this point closely in [Dealing with `NOT NULL` constraint](#dealing-with-not-null-constraint) section.
 
@@ -281,13 +281,35 @@ Migrations: `CREATE SEQUENCE`, `DROP SEQUENCE`, `CREATE TABLE`, `DROP TABLE`, `A
 
 This migrations are pretty safe, because your logic doesn't work with this data before migration
 
+##### Rename models
+
+Migrations: `ALTER TABLE RENAME TO`.
+
+Standard django's approach does not allow to operate simultaneously for old and new code with old and new table name, hopefully next workaround allows to rename table by splitting migration to few steps:
+1. provide code changes but replace standard migration with [SeparateDatabaseAndState](https://docs.djangoproject.com/en/dev/ref/migration-operations/#separatedatabaseandstate) sql operation that **in transaction** rename table and create [updatable view](https://www.postgresql.org/docs/current/sql-createview.html#SQL-CREATEVIEW-UPDATABLE-VIEWS) that has old table name 
+   - old code can work with [updatable view](https://www.postgresql.org/docs/current/sql-createview.html#SQL-CREATEVIEW-UPDATABLE-VIEWS) by old name
+   - new code can work with table by new name 
+2. after new code deployment old code is not used anymore, so we can drop view
+   - new code can work with renamed table
+
+##### Rename columns
+
+Migrations: `ALTER TABLE RENAME COLUMN`.
+
+Standard django's approach does not allow to operate simultaneously for old and new code with old and new column name, hopefully next workaround allows to rename column by splitting migration to few steps:
+1. provide code changes but replace standard migration with [SeparateDatabaseAndState](https://docs.djangoproject.com/en/dev/ref/migration-operations/#separatedatabaseandstate) sql operation that **in transaction** rename column, rename table to temporary and create [updatable view](https://www.postgresql.org/docs/current/sql-createview.html#SQL-CREATEVIEW-UPDATABLE-VIEWS) that has old table name with both old and new columns 
+   - old code can work with new [updatable view](https://www.postgresql.org/docs/current/sql-createview.html#SQL-CREATEVIEW-UPDATABLE-VIEWS) and use old column
+   - new code can work with new [updatable view](https://www.postgresql.org/docs/current/sql-createview.html#SQL-CREATEVIEW-UPDATABLE-VIEWS) and use new column 
+2. after new code deployment old code is not used anymore, so **in transaction** we can drop view and rename table back
+   - new code can work with renamed column
+
 ##### Changes for working logic
 
-Migrations: `ALTER TABLE RENAME TO`, `ALTER TABLE SET TABLESPACE`, `ALTER TABLE RENAME COLUMN`, `ALTER TABLE ADD CONSTRAINT EXCLUDE`.
+Migrations: `ALTER TABLE SET TABLESPACE`, `ALTER TABLE ADD CONSTRAINT EXCLUDE`.
 
 For this migration too hard implement logic that will work correctly for all instances, so there are two ways to dealing with it:
 
-1. create new table/column, copy exist data, drop old table/column
+1. create new table, copy exist data, drop old table
 2. downtime
 
 ##### Create column with default
