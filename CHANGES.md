@@ -1,5 +1,13 @@
 # django-pg-zero-downtime-migrations changelog
 
+## 0.16
+  - changed `ADD COLUMN DEFAULT NULL` to safe operation for code default
+  - changed `ADD COLUMN DEFAULT NOT NULL` to safe operation for `db_default` in django 5.0+
+  - added `ZERO_DOWNTIME_MIGRATIONS_KEEP_DEFAULT` settings and changed `ADD COLUMN DEFAULT NOT NULL` with this settings to safe operation for django<5.0
+  - updated unsafe migrations links to documentation
+  - updated patched code to latest django version
+  - improved README
+
 ## 0.15
   - added idempotent mode and `ZERO_DOWNTIME_MIGRATIONS_IDEMPOTENT_SQL` setting
   - fixed django 3.2 degradation with missing `skip_default_on_alter` method
