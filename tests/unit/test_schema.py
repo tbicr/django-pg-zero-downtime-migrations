@@ -212,16 +212,16 @@ def test_add_field__ok():
 
 
 @pytest.mark.django_db
-def test_add_field_with_default__warning():
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_add_field_with_code_default_null__ok():
     with cmp_schema_editor() as editor:
-        with pytest.warns(UnsafeOperationWarning, match='ADD COLUMN DEFAULT is unsafe operation'):
-            field = models.CharField(max_length=40, default='test', null=True)
-            field.set_attributes_from_name('field')
-            editor.add_field(Model, field)
+        field = models.CharField(max_length=40, default='test', null=True)
+        field.set_attributes_from_name('field')
+        editor.add_field(Model, field)
     assert editor.collected_sql == timeouts(
-        'ALTER TABLE "tests_model" ADD COLUMN "field" varchar(40) DEFAULT \'test\' NULL;'
+        'ALTER TABLE "tests_model" ADD COLUMN "field" varchar(40) DEFAULT \'test\' NULL;',
     ) + timeouts(
-        'ALTER TABLE "tests_model" ALTER COLUMN "field" DROP DEFAULT;'
+        'ALTER TABLE "tests_model" ALTER COLUMN "field" DROP DEFAULT;',
     )
     assert editor.django_sql == [
         'ALTER TABLE "tests_model" ADD COLUMN "field" varchar(40) DEFAULT \'test\' NULL;',
@@ -230,16 +230,113 @@ def test_add_field_with_default__warning():
 
 
 @pytest.mark.django_db
-@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
-def test_add_field_with_default__raise():
+def test_add_field_with_code_default_not_null__warning():
     with cmp_schema_editor() as editor:
-        with pytest.raises(UnsafeOperationException, match='ADD COLUMN DEFAULT is unsafe operation'):
-            field = models.CharField(max_length=40, default='test', null=True)
+        with pytest.warns(UnsafeOperationWarning, match='ADD COLUMN NOT NULL is unsafe operation'):
+            field = models.CharField(max_length=40, default='test', null=False)
+            field.set_attributes_from_name('field')
+            editor.add_field(Model, field)
+    assert editor.collected_sql == timeouts(
+        'ALTER TABLE "tests_model" ADD COLUMN "field" varchar(40) DEFAULT \'test\' NOT NULL;'
+    ) + timeouts(
+        'ALTER TABLE "tests_model" ALTER COLUMN "field" DROP DEFAULT;'
+    )
+    assert editor.django_sql == [
+        'ALTER TABLE "tests_model" ADD COLUMN "field" varchar(40) DEFAULT \'test\' NOT NULL;',
+        'ALTER TABLE "tests_model" ALTER COLUMN "field" DROP DEFAULT;',
+    ]
+
+
+@pytest.mark.django_db
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_add_field_with_code_default_not_null__raise():
+    with cmp_schema_editor() as editor:
+        with pytest.raises(UnsafeOperationException, match='ADD COLUMN NOT NULL is unsafe operation'):
+            field = models.CharField(max_length=40, default='test', null=False)
             field.set_attributes_from_name('field')
             editor.add_field(Model, field)
     assert editor.django_sql == [
-        'ALTER TABLE "tests_model" ADD COLUMN "field" varchar(40) DEFAULT \'test\' NULL;',
+        'ALTER TABLE "tests_model" ADD COLUMN "field" varchar(40) DEFAULT \'test\' NOT NULL;',
         'ALTER TABLE "tests_model" ALTER COLUMN "field" DROP DEFAULT;',
+    ]
+
+
+@pytest.mark.django_db
+@pytest.mark.skipif(django.VERSION[:2] >= (5, 0), reason='setting deprecated for django 5.0')
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
+                   ZERO_DOWNTIME_MIGRATIONS_KEEP_DEFAULT=True)
+def test_add_field_with_code_default_not_null__keep_default__ok():
+    with cmp_schema_editor() as editor:
+        field = models.CharField(max_length=40, default='test', null=False)
+        field.set_attributes_from_name('field')
+        editor.add_field(Model, field)
+    assert editor.collected_sql == timeouts(
+        'ALTER TABLE "tests_model" ADD COLUMN "field" varchar(40) DEFAULT \'test\' NOT NULL;'
+    )
+    assert editor.django_sql == [
+        'ALTER TABLE "tests_model" ADD COLUMN "field" varchar(40) DEFAULT \'test\' NOT NULL;',
+        'ALTER TABLE "tests_model" ALTER COLUMN "field" DROP DEFAULT;',
+    ]
+
+
+@pytest.mark.django_db
+@pytest.mark.skipif(django.VERSION[:2] < (5, 0), reason='setting deprecated in django 5.0')
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
+                   ZERO_DOWNTIME_MIGRATIONS_KEEP_DEFAULT=True)
+def test_add_field_with_code_default_not_null__keep_default__raise():
+    with cmp_schema_editor() as editor:
+        with pytest.raises(UnsafeOperationException, match='ADD COLUMN NOT NULL is unsafe operation'):
+            field = models.CharField(max_length=40, default='test', null=False)
+            field.set_attributes_from_name('field')
+            editor.add_field(Model, field)
+    assert editor.django_sql == [
+        'ALTER TABLE "tests_model" ADD COLUMN "field" varchar(40) DEFAULT \'test\' NOT NULL;',
+        'ALTER TABLE "tests_model" ALTER COLUMN "field" DROP DEFAULT;',
+    ]
+
+
+@pytest.mark.django_db
+@pytest.mark.skipif(django.VERSION[:2] < (5, 0), reason='functionality provided in django 5.0')
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_add_field_with_db_default_null__ok():
+    with cmp_schema_editor() as editor:
+        field = models.CharField(max_length=40, db_default='test', null=True)
+        field.set_attributes_from_name('field')
+        field.model = Model
+        editor.add_field(Model, field)
+    assert editor.collected_sql == timeouts(editor.django_sql)
+    assert editor.django_sql == [
+        'ALTER TABLE "tests_model" ADD COLUMN "field" varchar(40) DEFAULT \'test\' NULL;',
+    ]
+
+
+@pytest.mark.django_db
+@pytest.mark.skipif(django.VERSION[:2] < (5, 0), reason='functionality provided in django 5.0')
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_add_field_with_db_default_not_null__ok():
+    with cmp_schema_editor() as editor:
+        field = models.CharField(max_length=40, db_default='test', null=False)
+        field.set_attributes_from_name('field')
+        field.model = Model
+        editor.add_field(Model, field)
+    assert editor.collected_sql == timeouts(editor.django_sql)
+    assert editor.django_sql == [
+        'ALTER TABLE "tests_model" ADD COLUMN "field" varchar(40) DEFAULT \'test\' NOT NULL;',
+    ]
+
+
+@pytest.mark.django_db
+@pytest.mark.skipif(django.VERSION[:2] < (5, 0), reason='functionality provided in django 5.0')
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_add_field_with_code_default_db_default_not_null__ok():
+    with cmp_schema_editor() as editor:
+        field = models.CharField(max_length=40, db_default='test', default='test2', null=False)
+        field.set_attributes_from_name('field')
+        field.model = Model
+        editor.add_field(Model, field)
+    assert editor.collected_sql == timeouts(editor.django_sql)
+    assert editor.django_sql == [
+        'ALTER TABLE "tests_model" ADD COLUMN "field" varchar(40) DEFAULT \'test\' NOT NULL;',
     ]
 
 
@@ -962,7 +1059,7 @@ def test_alter_filed_drop_not_null__ok(cursor, mocker):
 
 @pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
-def test_alter_field_set_default__ok():
+def test_alter_field_set_code_default__ok():
     with cmp_schema_editor() as editor:
         old_field = models.CharField(max_length=40)
         old_field.set_attributes_from_name('field')
@@ -976,7 +1073,7 @@ def test_alter_field_set_default__ok():
 
 @pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
-def test_alter_field_drop_default__ok():
+def test_alter_field_drop_code_default__ok():
     with cmp_schema_editor() as editor:
         old_field = models.CharField(max_length=40, default='test')
         old_field.set_attributes_from_name('field')
@@ -986,6 +1083,42 @@ def test_alter_field_drop_default__ok():
     # no sql executed because django doesn't use database defaults
     assert editor.collected_sql == editor.django_sql
     assert editor.django_sql == []
+
+
+@pytest.mark.django_db
+@pytest.mark.skipif(django.VERSION[:2] < (5, 0), reason='functionality provided in django 5.0')
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_alter_field_set_db_default__ok():
+    with cmp_schema_editor() as editor:
+        old_field = models.CharField(max_length=40)
+        old_field.set_attributes_from_name('field')
+        old_field.model = Model
+        new_field = models.CharField(max_length=40, db_default='test')
+        new_field.set_attributes_from_name('field')
+        new_field.model = Model
+        editor.alter_field(Model, old_field, new_field)
+    assert editor.collected_sql == timeouts(editor.django_sql)
+    assert editor.django_sql == [
+        'ALTER TABLE "tests_model" ALTER COLUMN "field" SET DEFAULT \'test\';',
+    ]
+
+
+@pytest.mark.django_db
+@pytest.mark.skipif(django.VERSION[:2] < (5, 0), reason='functionality provided in django 5.0')
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_alter_field_drop_db_default__ok():
+    with cmp_schema_editor() as editor:
+        old_field = models.CharField(max_length=40, db_default='test')
+        old_field.set_attributes_from_name('field')
+        old_field.model = Model
+        new_field = models.CharField(max_length=40)
+        new_field.set_attributes_from_name('field')
+        new_field.model = Model
+        editor.alter_field(Model, old_field, new_field)
+    assert editor.collected_sql == timeouts(editor.django_sql)
+    assert editor.django_sql == [
+        'ALTER TABLE "tests_model" ALTER COLUMN "field" DROP DEFAULT;',
+    ]
 
 
 @pytest.mark.django_db

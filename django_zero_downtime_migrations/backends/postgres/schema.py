@@ -10,18 +10,14 @@ from django.db.backends.postgresql.schema import (
     DatabaseSchemaEditor as PostgresDatabaseSchemaEditor
 )
 from django.db.backends.utils import strip_quotes
+from django.db.models import NOT_PROVIDED
 
 
 class Unsafe:
-    ADD_COLUMN_DEFAULT = (
-        "ADD COLUMN DEFAULT is unsafe operation\n"
-        "See details for safe alternative "
-        "https://github.com/tbicr/django-pg-zero-downtime-migrations#create-column-with-default"
-    )
     ADD_COLUMN_NOT_NULL = (
         "ADD COLUMN NOT NULL is unsafe operation\n"
         "See details for safe alternative "
-        "https://github.com/tbicr/django-pg-zero-downtime-migrations#dealing-with-not-null-constraint"
+        "https://github.com/tbicr/django-pg-zero-downtime-migrations#create-column-not-null"
     )
     ALTER_COLUMN_TYPE = (
         "ALTER COLUMN TYPE is unsafe operation\n"
@@ -36,7 +32,7 @@ class Unsafe:
     ALTER_TABLE_RENAME = (
         "ALTER TABLE RENAME is unsafe operation\n"
         "See details for save alternative "
-        "https://github.com/tbicr/django-pg-zero-downtime-migrations#changes-for-working-logic"
+        "https://github.com/tbicr/django-pg-zero-downtime-migrations#rename-models"
     )
     ALTER_TABLE_SET_TABLESPACE = (
         "ALTER TABLE SET TABLESPACE is unsafe operation\n"
@@ -46,7 +42,7 @@ class Unsafe:
     ALTER_TABLE_RENAME_COLUMN = (
         "ALTER TABLE RENAME COLUMN is unsafe operation\n"
         "See details for save alternative "
-        "https://github.com/tbicr/django-pg-zero-downtime-migrations#changes-for-working-logic"
+        "https://github.com/tbicr/django-pg-zero-downtime-migrations#rename-columns"
     )
 
 
@@ -472,6 +468,18 @@ class DatabaseSchemaEditorMixin:
     _varchar_type_regexp = re.compile(r'^varchar\((?P<max_length>\d+)\)$')
     _numeric_type_regexp = re.compile(r'^numeric\((?P<precision>\d+), *(?P<scale>\d+)\)$')
 
+    @property
+    def sql_alter_column_no_default_null(self):
+        if self.KEEP_DEFAULT:
+            return DUMMY_SQL
+        return super().sql_alter_column_no_default_null
+
+    @property
+    def sql_alter_column_no_default(self):
+        if self.KEEP_DEFAULT:
+            return DUMMY_SQL
+        return super().sql_alter_column_no_default
+
     def __init__(self, connection, collect_sql=False, atomic=True):
         # Disable atomic transactions as it can be reason of downtime or deadlock
         # in case if you combine many operation in one migration module.
@@ -488,6 +496,14 @@ class DatabaseSchemaEditorMixin:
         self.RAISE_FOR_UNSAFE = getattr(settings, "ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE", False)
         self.DEFERRED_SQL = getattr(settings, "ZERO_DOWNTIME_MIGRATIONS_DEFERRED_SQL", True)
         self.IDEMPOTENT_SQL = getattr(settings, "ZERO_DOWNTIME_MIGRATIONS_IDEMPOTENT_SQL", False)
+        self.KEEP_DEFAULT = getattr(settings, "ZERO_DOWNTIME_MIGRATIONS_KEEP_DEFAULT", False)
+        if django.VERSION[:2] >= (5, 0) and hasattr(settings, 'ZERO_DOWNTIME_MIGRATIONS_KEEP_DEFAULT'):
+            warnings.warn(
+                'settings.ZERO_DOWNTIME_MIGRATIONS_KEEP_DEFAULT is not applicable for django 5.0+. '
+                'Please remove this setting.',
+                DeprecationWarning,
+            )
+            self.KEEP_DEFAULT = False
 
     def execute(self, sql, params=()):
         if sql is DUMMY_SQL:
@@ -657,19 +673,20 @@ class DatabaseSchemaEditorMixin:
             warnings.warn(UnsafeOperationWarning(Unsafe.ALTER_TABLE_RENAME_COLUMN))
         return super()._rename_field_sql(table, old_field, new_field, new_type)
 
-    def _add_column_default(self):
-        if self.RAISE_FOR_UNSAFE:
-            raise UnsafeOperationException(Unsafe.ADD_COLUMN_DEFAULT)
-        else:
-            warnings.warn(UnsafeOperationWarning(Unsafe.ADD_COLUMN_DEFAULT))
-        return " DEFAULT %s"
+    def _has_db_default(self, field):
+        if django.VERSION < (5, 0):
+            if self.KEEP_DEFAULT:
+                return field.default is not NOT_PROVIDED
+            return False
+        return field.db_default is not NOT_PROVIDED
 
     def _add_column_not_null(self, model, field):
-        if self.RAISE_FOR_UNSAFE:
-            raise UnsafeOperationException(Unsafe.ADD_COLUMN_NOT_NULL)
-        else:
-            warnings.warn(UnsafeOperationWarning(Unsafe.ADD_COLUMN_NOT_NULL))
-        return " NOT NULL"
+        if not self._has_db_default(field):
+            if self.RAISE_FOR_UNSAFE:
+                raise UnsafeOperationException(Unsafe.ADD_COLUMN_NOT_NULL)
+            else:
+                warnings.warn(UnsafeOperationWarning(Unsafe.ADD_COLUMN_NOT_NULL))
+        return "NOT NULL"
 
     def _add_column_primary_key(self, model, field):
         self.deferred_sql.append(self.sql_create_pk % {
@@ -694,31 +711,56 @@ class DatabaseSchemaEditorMixin:
             """
             return False
 
-    def column_sql(self, model, field, include_default=False):
-        """
-        Take a field and return its column definition.
-        The field must already have had set_attributes_from_name() called.
-        """
-        if not include_default:
-            return super().column_sql(model, field, include_default)
+        def column_sql(self, model, field, include_default=False):
+            """
+            Return the column definition for a field. The field must already have
+            had set_attributes_from_name() called.
+            """
+            if not include_default:
+                return super().column_sql(model, field, include_default)
 
-        # Get the column's type and use that as the basis of the SQL
-        db_params = field.db_parameters(connection=self.connection)
-        sql = db_params['type']
-        params = []
-        # Check for fields that aren't actually columns (e.g. M2M)
-        if sql is None:
-            return None, None
-        # Collation.
-        collation = getattr(field, 'db_collation', None)
-        if collation:
-            sql += self._collate_sql(collation)
-        # Work out nullability
+            # Get the column's type and use that as the basis of the SQL.
+            field_db_params = field.db_parameters(connection=self.connection)
+            column_db_type = field_db_params["type"]
+            # Check for fields that aren't actually columns (e.g. M2M).
+            if column_db_type is None:
+                return None, None
+            params = []
+            return (
+                " ".join(
+                    # This appends to the params being returned.
+                    self._iter_column_sql(
+                        column_db_type,
+                        params,
+                        model,
+                        field,
+                        include_default,
+                    )
+                ),
+                params,
+            )
+
+    def _patched_iter_column_sql(
+        self, column_db_type, params, model, field, field_db_params, include_default
+    ):
+        yield column_db_type
+        if field_db_params.get("collation"):
+            yield self._collate_sql(field_db_params.get("collation"))
+        if django.VERSION >= (4, 2) and self.connection.features.supports_comments_inline and field.db_comment:
+            yield self._comment_sql(field.db_comment)
+        # Work out nullability.
         null = field.null
-        # If we were told to include a default value, do so
+        # Add database default.
+        if django.VERSION >= (5, 0) and field.db_default is not NOT_PROVIDED:
+            default_sql, default_params = self.db_default_sql(field)
+            yield f"DEFAULT {default_sql}"
+            params.extend(default_params)
+            include_default = False
+        # Include a default value, if requested.
         include_default = (
-            include_default and
-            not self.skip_default(field) and
+            include_default
+            and not self.skip_default(field)
+            and
             # Don't include a default value if it's a nullable field and the
             # default cannot be dropped in the ALTER COLUMN statement (e.g.
             # MySQL longtext and longblob).
@@ -727,28 +769,87 @@ class DatabaseSchemaEditorMixin:
         if include_default:
             default_value = self.effective_default(field)
             if default_value is not None:
-                sql += self._add_column_default()
-                params += [default_value]
+                column_default = "DEFAULT " + self._column_default_sql(field)
+                if self.connection.features.requires_literal_defaults:
+                    # Some databases can't take defaults as a parameter
+                    # (Oracle, SQLite). If this is the case, the individual
+                    # schema backend should implement prepare_default().
+                    yield column_default % self.prepare_default(default_value)
+                else:
+                    yield column_default
+                    params.append(default_value)
         # Oracle treats the empty string ('') as null, so coerce the null
         # option whenever '' is a possible value.
-        if (field.empty_strings_allowed and not field.primary_key and
-                self.connection.features.interprets_empty_strings_as_nulls):
+        if (
+            field.empty_strings_allowed
+            and not field.primary_key
+            and self.connection.features.interprets_empty_strings_as_nulls
+        ):
             null = True
-        if null and not self.connection.features.implied_column_null:
-            sql += " NULL"
+        if django.VERSION >= (5, 0) and field.generated:
+            generated_sql, generated_params = self._column_generated_sql(field)
+            params.extend(generated_params)
+            yield generated_sql
         elif not null:
-            sql += self._add_column_not_null(model, field)
-        # Primary key/unique outputs
+            yield self._add_column_not_null(model, field)  # different to origin method
+        elif not self.connection.features.implied_column_null:
+            yield "NULL"
         if field.primary_key:
-            sql += self._add_column_primary_key(model, field)
+            self._add_column_primary_key(model, field)  # different to origin method
         elif field.unique:
-            sql += self._add_column_unique(model, field)
-        # Optionally add the tablespace if it's an implicitly indexed column
+            self._add_column_unique(model, field)  # different to origin method
+        # Optionally add the tablespace if it's an implicitly indexed column.
         tablespace = field.db_tablespace or model._meta.db_tablespace
-        if tablespace and self.connection.features.supports_tablespaces and field.unique:
-            sql += " %s" % self.connection.ops.tablespace_sql(tablespace, inline=True)
-        # Return the sql
-        return sql, params
+        if (
+            tablespace
+            and self.connection.features.supports_tablespaces
+            and field.unique
+        ):
+            yield self.connection.ops.tablespace_sql(tablespace, inline=True)
+
+    if django.VERSION >= (4, 1):
+        def _iter_column_sql(
+                self, column_db_type, params, model, field, field_db_params, include_default
+        ):
+            if not include_default:
+                yield from super()._iter_column_sql(
+                    column_db_type,
+                    params,
+                    model,
+                    field,
+                    field_db_params,
+                    include_default,
+                )
+            else:
+                yield from self._patched_iter_column_sql(
+                    column_db_type,
+                    params,
+                    model,
+                    field,
+                    field_db_params,
+                    include_default,
+                )
+    else:
+        def _iter_column_sql(
+                self, column_db_type, params, model, field, include_default
+        ):
+            if not include_default:
+                yield from super()._iter_column_sql(
+                    column_db_type,
+                    params,
+                    model,
+                    field,
+                    include_default,
+                )
+            else:
+                yield from self._patched_iter_column_sql(
+                    column_db_type,
+                    params,
+                    model,
+                    field,
+                    {},
+                    include_default,
+                )
 
     def _alter_column_set_not_null(self, model, new_field):
         self.deferred_sql.append(self._sql_column_not_null % {
