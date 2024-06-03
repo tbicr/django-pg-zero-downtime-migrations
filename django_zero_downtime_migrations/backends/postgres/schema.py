@@ -495,7 +495,11 @@ class DatabaseSchemaEditorMixin:
             settings, "ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT", False)
         self.RAISE_FOR_UNSAFE = getattr(settings, "ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE", False)
         self.DEFERRED_SQL = getattr(settings, "ZERO_DOWNTIME_MIGRATIONS_DEFERRED_SQL", True)
-        self.IDEMPOTENT_SQL = getattr(settings, "ZERO_DOWNTIME_MIGRATIONS_IDEMPOTENT_SQL", False)
+        self.IDEMPOTENT_SQL = (
+            getattr(settings, "ZERO_DOWNTIME_MIGRATIONS_IDEMPOTENT_SQL", False)
+            if not collect_sql else
+            False  # disable idempotent mode for sqlmigrate
+        )
         self.KEEP_DEFAULT = getattr(settings, "ZERO_DOWNTIME_MIGRATIONS_KEEP_DEFAULT", False)
         if django.VERSION[:2] >= (5, 0) and hasattr(settings, 'ZERO_DOWNTIME_MIGRATIONS_KEEP_DEFAULT'):
             warnings.warn(

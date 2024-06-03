@@ -1,4 +1,7 @@
+import os
+
 import django
+from django.apps import apps
 from django.conf import settings
 from django.core.management import call_command
 from django.db import connection
@@ -14,6 +17,17 @@ from tests.integration import (
     is_valid_constraint, is_valid_index, make_index_invalid, one_line_sql,
     pg_dump, split_sql_queries
 )
+
+
+@pytest.mark.django_db(transaction=True)
+@modify_settings(INSTALLED_APPS={"append": "tests.apps.good_flow_app"})
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
+                   ZERO_DOWNTIME_MIGRATIONS_IDEMPOTENT_SQL=True)
+def test_sqlmigrate_with_idempotent_mode():
+    app_config = apps.get_app_config("good_flow_app")
+    for migration in os.listdir(os.path.join(app_config.path, "migrations")):
+        if not migration.startswith("_") and migration.endswith(".py"):
+            call_command("sqlmigrate", "good_flow_app", migration[:4])
 
 
 @pytest.mark.django_db(transaction=True)
