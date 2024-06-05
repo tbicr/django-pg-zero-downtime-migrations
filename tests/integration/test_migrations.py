@@ -153,6 +153,339 @@ def test_decimal_to_float_app():
     call_command("migrate", "decimal_to_float_app", "zero")
 
 
+@skip_for_default_django_backend
+@pytest.mark.django_db(transaction=True)
+@modify_settings(INSTALLED_APPS={"append": "tests.apps.good_flow_drop_table_with_constraints"})
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_good_flow_drop_table_with_constraints():
+    with override_settings(ZERO_DOWNTIME_MIGRATIONS_EXPLICIT_CONSTRAINTS_DROP=False):
+        call_command("migrate", "good_flow_drop_table_with_constraints")
+    drop_tbl_test_table_parent_schema = pg_dump("drop_tbl_test_table_parent")
+    drop_tbl_test_table_child_schema = pg_dump("drop_tbl_test_table_child")
+    call_command("migrate", "good_flow_drop_table_with_constraints", "zero")
+
+    _drop_child_foreign_key_constraint_sql = one_line_sql("""
+        SET CONSTRAINTS "drop_tbl_test_table__main_id_8a4874b6_fk_drop_tbl_" IMMEDIATE;
+        ALTER TABLE "drop_tbl_test_table_child"
+        DROP CONSTRAINT "drop_tbl_test_table__main_id_8a4874b6_fk_drop_tbl_";
+    """)
+    _drop_main_foreign_key_constraint_sql = one_line_sql("""
+        SET CONSTRAINTS "drop_tbl_test_table__parent_id_5c6ff8d9_fk_drop_tbl_" IMMEDIATE;
+        ALTER TABLE "drop_tbl_test_table_main"
+        DROP CONSTRAINT "drop_tbl_test_table__parent_id_5c6ff8d9_fk_drop_tbl_";
+    """)
+    _drop_table_sql = one_line_sql("""
+        DROP TABLE "drop_tbl_test_table_main" CASCADE;
+    """)
+
+    call_command("migrate", "good_flow_drop_table_with_constraints", "0002")
+    migration_sql = call_command("sqlmigrate", "good_flow_drop_table_with_constraints", "0003")
+    assert split_sql_queries(migration_sql) == [
+        _drop_child_foreign_key_constraint_sql,
+        _drop_main_foreign_key_constraint_sql,
+        _drop_table_sql,
+    ]
+    call_command("migrate", "good_flow_drop_table_with_constraints")
+    assert pg_dump("drop_tbl_test_table_parent") == drop_tbl_test_table_parent_schema
+    assert pg_dump("drop_tbl_test_table_child") == drop_tbl_test_table_child_schema
+
+
+@skip_for_default_django_backend
+@pytest.mark.skipif(
+    django.VERSION[:2] < (4, 0),
+    reason="django before 4.0 case",
+)
+@pytest.mark.django_db(transaction=True)
+@modify_settings(INSTALLED_APPS={"append": "tests.apps.good_flow_drop_column_with_constraints"})
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_good_flow_drop_column_with_constraints():
+    with override_settings(ZERO_DOWNTIME_MIGRATIONS_EXPLICIT_CONSTRAINTS_DROP=False):
+        call_command("migrate", "good_flow_drop_column_with_constraints")
+    drop_col_test_table_parent_schema = pg_dump("drop_col_test_table_parent")
+    drop_col_test_table_main_schema = pg_dump("drop_col_test_table_main")
+    drop_col_test_table_child_schema = pg_dump("drop_col_test_table_child")
+    call_command("migrate", "good_flow_drop_column_with_constraints", "zero")
+
+    call_command("migrate", "good_flow_drop_column_with_constraints", "0002")
+
+    migration_sql = call_command("sqlmigrate", "good_flow_drop_column_with_constraints", "0003")
+    assert split_sql_queries(migration_sql) == [
+        'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_i7";',
+        'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_i7" CASCADE;',
+    ]
+    call_command("migrate", "good_flow_drop_column_with_constraints", "0003")
+
+    migration_sql = call_command("sqlmigrate", "good_flow_drop_column_with_constraints", "0004")
+    assert split_sql_queries(migration_sql) == [
+        'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_i6";',
+        'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_i6" CASCADE;',
+    ]
+    call_command("migrate", "good_flow_drop_column_with_constraints", "0004")
+
+    migration_sql = call_command("sqlmigrate", "good_flow_drop_column_with_constraints", "0005")
+    assert split_sql_queries(migration_sql) == [
+        'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_i5";',
+        'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_i5" CASCADE;',
+    ]
+    call_command("migrate", "good_flow_drop_column_with_constraints", "0005")
+
+    migration_sql = call_command("sqlmigrate", "good_flow_drop_column_with_constraints", "0006")
+    assert split_sql_queries(migration_sql) == [
+        'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_i4";',
+        'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_i4" CASCADE;',
+    ]
+    call_command("migrate", "good_flow_drop_column_with_constraints", "0006")
+
+    migration_sql = call_command("sqlmigrate", "good_flow_drop_column_with_constraints", "0007")
+    assert split_sql_queries(migration_sql) == [
+        'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_i3";',
+        'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_i3" CASCADE;',
+    ]
+    call_command("migrate", "good_flow_drop_column_with_constraints", "0007")
+
+    migration_sql = call_command("sqlmigrate", "good_flow_drop_column_with_constraints", "0008")
+    assert split_sql_queries(migration_sql) == [
+        'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_i2";',
+        'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_i2" CASCADE;',
+    ]
+    call_command("migrate", "good_flow_drop_column_with_constraints", "0008")
+
+    migration_sql = call_command("sqlmigrate", "good_flow_drop_column_with_constraints", "0009")
+    assert split_sql_queries(migration_sql) == [
+        'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_i1";',
+        'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_i1" CASCADE;',
+    ]
+    call_command("migrate", "good_flow_drop_column_with_constraints", "0009")
+
+    migration_sql = call_command("sqlmigrate", "good_flow_drop_column_with_constraints", "0010")
+    assert split_sql_queries(migration_sql) == [
+        'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_u7";',
+        'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_u7" CASCADE;',
+    ]
+    call_command("migrate", "good_flow_drop_column_with_constraints", "0010")
+
+    migration_sql = call_command("sqlmigrate", "good_flow_drop_column_with_constraints", "0011")
+    assert split_sql_queries(migration_sql) == [
+        'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_u6";',
+        'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_u6" CASCADE;',
+    ]
+    call_command("migrate", "good_flow_drop_column_with_constraints", "0011")
+
+    migration_sql = call_command("sqlmigrate", "good_flow_drop_column_with_constraints", "0012")
+    assert split_sql_queries(migration_sql) == [
+        'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_u5";',
+        'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_u5" CASCADE;',
+    ]
+    call_command("migrate", "good_flow_drop_column_with_constraints", "0012")
+
+    migration_sql = call_command("sqlmigrate", "good_flow_drop_column_with_constraints", "0013")
+    assert split_sql_queries(migration_sql) == [
+        'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_u4";',
+        'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_u4" CASCADE;',
+    ]
+    call_command("migrate", "good_flow_drop_column_with_constraints", "0013")
+
+    migration_sql = call_command("sqlmigrate", "good_flow_drop_column_with_constraints", "0014")
+    assert split_sql_queries(migration_sql) == [
+        'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_u3";',
+        'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_u3" CASCADE;',
+    ]
+    call_command("migrate", "good_flow_drop_column_with_constraints", "0014")
+
+    migration_sql = call_command("sqlmigrate", "good_flow_drop_column_with_constraints", "0015")
+    assert split_sql_queries(migration_sql) == [
+        'ALTER TABLE "drop_col_test_table_main" DROP CONSTRAINT "drop_col_u2";',
+        'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_u2" CASCADE;',
+    ]
+    call_command("migrate", "good_flow_drop_column_with_constraints", "0015")
+
+    migration_sql = call_command("sqlmigrate", "good_flow_drop_column_with_constraints", "0016")
+    assert split_sql_queries(migration_sql) == [
+        'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_u1";',
+        'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_u1" CASCADE;',
+    ]
+    call_command("migrate", "good_flow_drop_column_with_constraints", "0016")
+
+    _drop_main_id_child_foreign_key_constraint_sql = one_line_sql("""
+        SET CONSTRAINTS "drop_col_test_table__main_id_9da91a1c_fk_drop_col_" IMMEDIATE;
+        ALTER TABLE "drop_col_test_table_child"
+        DROP CONSTRAINT "drop_col_test_table__main_id_9da91a1c_fk_drop_col_";
+    """)
+    _drop_main_id_field_unique_constraint = one_line_sql("""
+        ALTER TABLE "drop_col_test_table_main" 
+        DROP CONSTRAINT "drop_col_test_table_main_main_id_key";
+    """)
+    _drop_main_id_column_sql = one_line_sql("""
+        ALTER TABLE "drop_col_test_table_main" DROP COLUMN "main_id" CASCADE;
+    """)
+    migration_sql = call_command("sqlmigrate", "good_flow_drop_column_with_constraints", "0017")
+    assert split_sql_queries(migration_sql) == [
+        _drop_main_id_child_foreign_key_constraint_sql,
+        _drop_main_id_field_unique_constraint,
+        _drop_main_id_column_sql,
+    ]
+    call_command("migrate", "good_flow_drop_column_with_constraints", "0017")
+
+    _drop_parent_id_main_foreign_key_constraint_sql = one_line_sql("""
+         SET CONSTRAINTS "drop_col_test_table__parent_id_55b0b5e6_fk_drop_col_" IMMEDIATE;
+         ALTER TABLE "drop_col_test_table_main"
+         DROP CONSTRAINT "drop_col_test_table__parent_id_55b0b5e6_fk_drop_col_";
+     """)
+    _drop_parent_id_field_unique_constraint = one_line_sql("""
+         ALTER TABLE "drop_col_test_table_main"
+         DROP CONSTRAINT "drop_col_test_table_main_parent_id_55b0b5e6_uniq";
+     """)
+    _drop_parent_id_column_sql = one_line_sql("""
+         ALTER TABLE "drop_col_test_table_main" DROP COLUMN "parent_id" CASCADE;
+     """)
+    migration_sql = call_command("sqlmigrate", "good_flow_drop_column_with_constraints", "0018")
+    assert split_sql_queries(migration_sql) == [
+        _drop_parent_id_main_foreign_key_constraint_sql,
+        _drop_parent_id_field_unique_constraint,
+        _drop_parent_id_column_sql,
+    ]
+    call_command("migrate", "good_flow_drop_column_with_constraints", "0018")
+
+    call_command("migrate", "good_flow_drop_column_with_constraints")
+    assert pg_dump("drop_col_test_table_parent") == drop_col_test_table_parent_schema
+    assert pg_dump("drop_col_test_table_main") == drop_col_test_table_main_schema
+    assert pg_dump("drop_col_test_table_child") == drop_col_test_table_child_schema
+
+
+@skip_for_default_django_backend
+@pytest.mark.skipif(
+    django.VERSION[:2] >= (4, 0),
+    reason="django after 4.0 case",
+)
+@pytest.mark.django_db(transaction=True)
+@modify_settings(INSTALLED_APPS={"append": "tests.apps.good_flow_drop_column_with_constraints_old"})
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_good_flow_drop_column_with_constraints_old():
+    with override_settings(ZERO_DOWNTIME_MIGRATIONS_EXPLICIT_CONSTRAINTS_DROP=False):
+        call_command("migrate", "good_flow_drop_column_with_constraints_old")
+    drop_col_test_table_parent_schema = pg_dump("drop_col_test_table_parent")
+    drop_col_test_table_main_schema = pg_dump("drop_col_test_table_main")
+    drop_col_test_table_child_schema = pg_dump("drop_col_test_table_child")
+    call_command("migrate", "good_flow_drop_column_with_constraints_old", "zero")
+
+    call_command("migrate", "good_flow_drop_column_with_constraints_old", "0002")
+
+    migration_sql = call_command("sqlmigrate", "good_flow_drop_column_with_constraints_old", "0003")
+    assert split_sql_queries(migration_sql) == [
+        'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_i7";',
+        'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_i7" CASCADE;',
+    ]
+    call_command("migrate", "good_flow_drop_column_with_constraints_old", "0003")
+
+    migration_sql = call_command("sqlmigrate", "good_flow_drop_column_with_constraints_old", "0004")
+    assert split_sql_queries(migration_sql) == [
+        'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_i6";',
+        'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_i6" CASCADE;',
+    ]
+    call_command("migrate", "good_flow_drop_column_with_constraints_old", "0004")
+
+    migration_sql = call_command("sqlmigrate", "good_flow_drop_column_with_constraints_old", "0005")
+    assert split_sql_queries(migration_sql) == [
+        'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_i5";',
+        'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_i5" CASCADE;',
+    ]
+    call_command("migrate", "good_flow_drop_column_with_constraints_old", "0005")
+
+    migration_sql = call_command("sqlmigrate", "good_flow_drop_column_with_constraints_old", "0006")
+    assert split_sql_queries(migration_sql) == [
+        'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_i4";',
+        'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_i4" CASCADE;',
+    ]
+    call_command("migrate", "good_flow_drop_column_with_constraints_old", "0006")
+
+    migration_sql = call_command("sqlmigrate", "good_flow_drop_column_with_constraints_old", "0007")
+    assert split_sql_queries(migration_sql) == [
+        'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_i3";',
+        'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_i3" CASCADE;',
+    ]
+    call_command("migrate", "good_flow_drop_column_with_constraints_old", "0007")
+
+    migration_sql = call_command("sqlmigrate", "good_flow_drop_column_with_constraints_old", "0008")
+    assert split_sql_queries(migration_sql) == [
+        'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_i2";',
+        'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_i2" CASCADE;',
+    ]
+    call_command("migrate", "good_flow_drop_column_with_constraints_old", "0008")
+
+    migration_sql = call_command("sqlmigrate", "good_flow_drop_column_with_constraints_old", "0009")
+    assert split_sql_queries(migration_sql) == [
+        'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_i1";',
+        'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_i1" CASCADE;',
+    ]
+    call_command("migrate", "good_flow_drop_column_with_constraints_old", "0009")
+
+    migration_sql = call_command("sqlmigrate", "good_flow_drop_column_with_constraints_old", "0010")
+    assert split_sql_queries(migration_sql) == [
+        'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_u7";',
+        'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_u7" CASCADE;',
+    ]
+    call_command("migrate", "good_flow_drop_column_with_constraints_old", "0010")
+
+    migration_sql = call_command("sqlmigrate", "good_flow_drop_column_with_constraints_old", "0011")
+    assert split_sql_queries(migration_sql) == [
+        'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_u5";',
+        'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_u5" CASCADE;',
+    ]
+    call_command("migrate", "good_flow_drop_column_with_constraints_old", "0011")
+
+    migration_sql = call_command("sqlmigrate", "good_flow_drop_column_with_constraints_old", "0012")
+    assert split_sql_queries(migration_sql) == [
+        'ALTER TABLE "drop_col_test_table_main" DROP CONSTRAINT "drop_col_u2";',
+        'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_u2" CASCADE;',
+    ]
+    call_command("migrate", "good_flow_drop_column_with_constraints_old", "0012")
+
+    _drop_main_id_child_foreign_key_constraint_sql = one_line_sql("""
+        SET CONSTRAINTS "drop_col_test_table__main_id_9da91a1c_fk_drop_col_" IMMEDIATE;
+        ALTER TABLE "drop_col_test_table_child"
+        DROP CONSTRAINT "drop_col_test_table__main_id_9da91a1c_fk_drop_col_";
+    """)
+    _drop_main_id_field_unique_constraint = one_line_sql("""
+        ALTER TABLE "drop_col_test_table_main"
+        DROP CONSTRAINT "drop_col_test_table_main_main_id_key";
+    """)
+    _drop_main_id_column_sql = one_line_sql("""
+        ALTER TABLE "drop_col_test_table_main" DROP COLUMN "main_id" CASCADE;
+    """)
+    migration_sql = call_command("sqlmigrate", "good_flow_drop_column_with_constraints_old", "0013")
+    assert split_sql_queries(migration_sql) == [
+        _drop_main_id_child_foreign_key_constraint_sql,
+        _drop_main_id_field_unique_constraint,
+        _drop_main_id_column_sql,
+    ]
+    call_command("migrate", "good_flow_drop_column_with_constraints_old", "0013")
+
+    _drop_parent_id_main_foreign_key_constraint_sql = one_line_sql("""
+         SET CONSTRAINTS "drop_col_test_table__parent_id_55b0b5e6_fk_drop_col_" IMMEDIATE;
+         ALTER TABLE "drop_col_test_table_main"
+         DROP CONSTRAINT "drop_col_test_table__parent_id_55b0b5e6_fk_drop_col_";
+     """)
+    _drop_parent_id_field_unique_constraint = one_line_sql("""
+         ALTER TABLE "drop_col_test_table_main"
+         DROP CONSTRAINT "drop_col_test_table_main_parent_id_55b0b5e6_uniq";
+     """)
+    _drop_parent_id_column_sql = one_line_sql("""
+         ALTER TABLE "drop_col_test_table_main" DROP COLUMN "parent_id" CASCADE;
+     """)
+    migration_sql = call_command("sqlmigrate", "good_flow_drop_column_with_constraints_old", "0014")
+    assert split_sql_queries(migration_sql) == [
+        _drop_parent_id_main_foreign_key_constraint_sql,
+        _drop_parent_id_field_unique_constraint,
+        _drop_parent_id_column_sql,
+    ]
+    call_command("migrate", "good_flow_drop_column_with_constraints_old", "0014")
+
+    call_command("migrate", "good_flow_drop_column_with_constraints_old")
+    assert pg_dump("drop_col_test_table_parent") == drop_col_test_table_parent_schema
+    assert pg_dump("drop_col_test_table_main") == drop_col_test_table_main_schema
+    assert pg_dump("drop_col_test_table_child") == drop_col_test_table_child_schema
+
+
 @pytest.mark.django_db(transaction=True)
 @pytest.mark.skipif(
     settings.DATABASES["default"]["ENGINE"] != "django_zero_downtime_migrations.backends.postgres",

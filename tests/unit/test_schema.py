@@ -136,6 +136,46 @@ def test_drop_model__ok():
 
 
 @pytest.mark.django_db
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_drop_model__drop_foreign_key__ok(cursor, mocker):
+    mocker.patch.object(cursor, 'execute')
+    mocker.patch.object(cursor, 'fetchall').return_value = [
+        ('tests_model_model2_id_fk', 'f', 'tests_model', 'tests_model2', ['model2_id'], ['id'])
+    ]
+    with cmp_schema_editor() as editor:
+        editor.delete_model(Model)
+    assert editor.collected_sql == timeouts(
+        'SET CONSTRAINTS "tests_model_model2_id_fk" IMMEDIATE; '
+        'ALTER TABLE "tests_model" DROP CONSTRAINT "tests_model_model2_id_fk";',
+    ) + [
+       'DROP TABLE "tests_model" CASCADE;'
+    ]
+    assert editor.django_sql == [
+        'DROP TABLE "tests_model" CASCADE;',
+    ]
+
+
+@pytest.mark.django_db
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_drop_model__drop_foreign_key_backref__ok(cursor, mocker):
+    mocker.patch.object(cursor, 'execute')
+    mocker.patch.object(cursor, 'fetchall').return_value = [
+        ('tests_model2_model_id_fk', 'f', 'tests_model2', 'tests_model', ['model_id'], ['id'])
+    ]
+    with cmp_schema_editor() as editor:
+        editor.delete_model(Model)
+    assert editor.collected_sql == timeouts(
+        'SET CONSTRAINTS "tests_model2_model_id_fk" IMMEDIATE; '
+        'ALTER TABLE "tests_model2" DROP CONSTRAINT "tests_model2_model_id_fk";',
+    ) + [
+        'DROP TABLE "tests_model" CASCADE;'
+    ]
+    assert editor.django_sql == [
+        'DROP TABLE "tests_model" CASCADE;',
+    ]
+
+
+@pytest.mark.django_db
 def test_rename_model__warning():
     with cmp_schema_editor() as editor:
         with pytest.warns(UnsafeOperationWarning, match='ALTER TABLE RENAME is unsafe operation'):
@@ -1166,6 +1206,146 @@ def test_remove_field__ok():
 
 @pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_remove_field_with_foreign_key__ok(cursor, mocker):
+    mocker.patch.object(cursor, 'execute')
+    mocker.patch.object(cursor, 'fetchall').side_effect = [
+        [
+            ('tests_model_field_fk', 'f', 'tests_model', 'tests_model2', ['field'], ['id']),
+            ('tests_model_field2_fk', 'f', 'tests_model', 'tests_model2', ['field2'], ['id']),
+        ],
+        [
+            ('tests_model_field2_fk', 'f', 'tests_model', 'tests_model2', ['field2'], ['id']),
+        ],
+        [],
+    ]
+    with cmp_schema_editor() as editor:
+        field = models.CharField(max_length=40)
+        field.set_attributes_from_name('field')
+        editor.remove_field(Model, field)
+    assert editor.collected_sql == timeouts(
+        'SET CONSTRAINTS "tests_model_field_fk" IMMEDIATE; '
+        'ALTER TABLE "tests_model" DROP CONSTRAINT "tests_model_field_fk";'
+    ) + timeouts(
+        'ALTER TABLE "tests_model" DROP COLUMN "field" CASCADE;'
+    )
+    assert editor.django_sql == [
+        'ALTER TABLE "tests_model" DROP COLUMN "field" CASCADE;',
+    ]
+
+
+@pytest.mark.django_db
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_remove_field_with_foreign_key_backref__ok(cursor, mocker):
+    mocker.patch.object(cursor, 'execute')
+    mocker.patch.object(cursor, 'fetchall').side_effect = [
+        [
+            ('tests_model2_model_field_fk', 'f', 'tests_model2', 'tests_model', ['model_field'], ['field']),
+            ('tests_model2_model_field2_fk', 'f', 'tests_model2', 'tests_model', ['model_field2'], ['field2']),
+        ],
+        [
+            ('tests_model2_model_field2_fk', 'f', 'tests_model2', 'tests_model', ['model_field2'], ['field2']),
+        ],
+        [],
+    ]
+    with cmp_schema_editor() as editor:
+        field = models.CharField(max_length=40)
+        field.set_attributes_from_name('field')
+        editor.remove_field(Model, field)
+    assert editor.collected_sql == timeouts(
+        'SET CONSTRAINTS "tests_model2_model_field_fk" IMMEDIATE; '
+        'ALTER TABLE "tests_model2" DROP CONSTRAINT "tests_model2_model_field_fk";'
+    ) + timeouts(
+        'ALTER TABLE "tests_model" DROP COLUMN "field" CASCADE;'
+    )
+    assert editor.django_sql == [
+        'ALTER TABLE "tests_model" DROP COLUMN "field" CASCADE;',
+    ]
+
+
+@pytest.mark.django_db
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_remove_field_with_unique_constraint__ok(cursor, mocker):
+    mocker.patch.object(cursor, 'execute')
+    mocker.patch.object(cursor, 'fetchall').side_effect = [
+        [
+            ('tests_model_field2_field_uniq', 'u', 'tests_model', None, ['field2', 'field'], []),
+            ('tests_model_field2_field3_uniq', 'u', 'tests_model', None, ['field2', 'field3'], []),
+        ],
+        [
+            ('tests_model_field2_field_uniq', 'u', 'tests_model', None, ['field2', 'field'], []),
+            ('tests_model_field2_field3_uniq', 'u', 'tests_model', None, ['field2', 'field3'], []),
+        ],
+        [],
+    ]
+    with cmp_schema_editor() as editor:
+        field = models.CharField(max_length=40)
+        field.set_attributes_from_name('field')
+        editor.remove_field(Model, field)
+    assert editor.collected_sql == timeouts(
+        'ALTER TABLE "tests_model" DROP CONSTRAINT "tests_model_field2_field_uniq";',
+    ) + timeouts(
+        'ALTER TABLE "tests_model" DROP COLUMN "field" CASCADE;',
+    )
+    assert editor.django_sql == [
+        'ALTER TABLE "tests_model" DROP COLUMN "field" CASCADE;',
+    ]
+
+
+@pytest.mark.django_db
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_remove_field_with_index__ok(cursor, mocker):
+    mocker.patch.object(cursor, 'execute')
+    mocker.patch.object(cursor, 'fetchall').side_effect = [
+        [],
+        [],
+        [
+            ('tests_model_field2_field_idx', 'tests_model', ['field2', 'field']),
+            ('tests_model_field2_field3_idx', 'tests_model', ['field2', 'field3']),
+        ],
+    ]
+    with cmp_schema_editor() as editor:
+        field = models.CharField(max_length=40)
+        field.set_attributes_from_name('field')
+        editor.remove_field(Model, field)
+    assert editor.collected_sql == [
+        'DROP INDEX CONCURRENTLY IF EXISTS "tests_model_field2_field_idx";',
+    ] + timeouts(
+        'ALTER TABLE "tests_model" DROP COLUMN "field" CASCADE;',
+    )
+    assert editor.django_sql == [
+        'ALTER TABLE "tests_model" DROP COLUMN "field" CASCADE;',
+    ]
+
+
+@pytest.mark.django_db
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
+                   ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
+def test_remove_field_with_index__with_flexible_timeout__ok(cursor, mocker):
+    mocker.patch.object(cursor, 'execute')
+    mocker.patch.object(cursor, 'fetchall').side_effect = [
+        [],
+        [],
+        [
+            ('tests_model_field2_field_idx', 'tests_model', ['field2', 'field']),
+            ('tests_model_field2_field3_idx', 'tests_model', ['field2', 'field3']),
+        ],
+    ]
+    with cmp_schema_editor() as editor:
+        field = models.CharField(max_length=40)
+        field.set_attributes_from_name('field')
+        editor.remove_field(Model, field)
+    assert editor.collected_sql == flexible_statement_timeout(
+        'DROP INDEX CONCURRENTLY IF EXISTS "tests_model_field2_field_idx";',
+    ) + timeouts(
+        'ALTER TABLE "tests_model" DROP COLUMN "field" CASCADE;',
+    )
+    assert editor.django_sql == [
+        'ALTER TABLE "tests_model" DROP COLUMN "field" CASCADE;',
+    ]
+
+
+@pytest.mark.django_db
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_alter_field_add_constraint_check__ok():
     with cmp_schema_editor() as editor:
         old_field = models.IntegerField()
@@ -1285,7 +1465,7 @@ def test_alter_filed_add_constraint_foreign_key__with_flexible_timeout__ok():
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_alter_field_drop_constraint_foreign_key__ok(mocker):
     mocker.patch.object(connection.introspection, 'get_constraints').return_value = {
-        'tests_model_field_0a53d95f_pk': {
+        'tests_model_field_0a53d95f_fk': {
             'columns': ['field_id'],
             'primary_key': False,
             'unique': False,
@@ -1304,8 +1484,8 @@ def test_alter_field_drop_constraint_foreign_key__ok(mocker):
         editor.alter_field(Model, old_field, new_field)
     assert editor.collected_sql == timeouts(editor.django_sql)
     assert editor.django_sql == [
-        'SET CONSTRAINTS "tests_model_field_0a53d95f_pk" IMMEDIATE; '
-        'ALTER TABLE "tests_model" DROP CONSTRAINT "tests_model_field_0a53d95f_pk";',
+        'SET CONSTRAINTS "tests_model_field_0a53d95f_fk" IMMEDIATE; '
+        'ALTER TABLE "tests_model" DROP CONSTRAINT "tests_model_field_0a53d95f_fk";',
     ]
 
 

@@ -5,7 +5,7 @@ from contextlib import contextmanager
 import django
 from django.conf import settings
 from django.contrib.postgres.constraints import ExclusionConstraint
-from django.db.backends.ddl_references import Statement
+from django.db.backends.ddl_references import Statement, Table
 from django.db.backends.postgresql.schema import (
     DatabaseSchemaEditor as PostgresDatabaseSchemaEditor
 )
@@ -417,7 +417,8 @@ class DatabaseSchemaEditorMixin:
     if django.VERSION[:2] >= (5, 0):
         sql_create_unique_index = MultiStatementSQL(
             PGShareUpdateExclusive(
-                "CREATE UNIQUE INDEX CONCURRENTLY %(name)s ON %(table)s (%(columns)s)%(condition)s%(nulls_distinct)s",
+                "CREATE UNIQUE INDEX CONCURRENTLY %(name)s ON %(table)s "
+                "(%(columns)s)%(include)s%(nulls_distinct)s%(condition)s",
                 idempotent_condition=Condition(_sql_index_exists, False),
                 disable_statement_timeout=True,
             ),
@@ -430,7 +431,8 @@ class DatabaseSchemaEditorMixin:
     else:
         sql_create_unique_index = MultiStatementSQL(
             PGShareUpdateExclusive(
-                "CREATE UNIQUE INDEX CONCURRENTLY %(name)s ON %(table)s (%(columns)s)%(condition)s",
+                "CREATE UNIQUE INDEX CONCURRENTLY %(name)s ON %(table)s "
+                "(%(columns)s)%(include)s%(condition)s",
                 idempotent_condition=Condition(_sql_index_exists, False),
                 disable_statement_timeout=True,
             ),
@@ -464,6 +466,54 @@ class DatabaseSchemaEditorMixin:
             idempotent_condition=Condition(_sql_constraint_exists, True),
         ),
     )
+
+    _sql_get_table_constraints_introspection = r"""
+        SELECT
+            c.conname,
+            c.contype,
+            c.conrelid::regclass::text,
+            c.confrelid::regclass::text,
+            array(
+                SELECT attname
+                FROM unnest(c.conkey) WITH ORDINALITY cols(colid, arridx)
+                JOIN pg_attribute AS ca ON cols.colid = ca.attnum
+                WHERE ca.attrelid = c.conrelid
+                ORDER BY cols.arridx
+            ),
+            array(
+                SELECT attname
+                FROM unnest(c.confkey) WITH ORDINALITY cols(colid, arridx)
+                JOIN pg_attribute AS ca ON cols.colid = ca.attnum
+                WHERE ca.attrelid = c.confrelid
+                ORDER BY cols.arridx
+            )
+        FROM pg_constraint AS c
+        WHERE c.conrelid::regclass::text = %s
+        OR c.confrelid::regclass::text = %s
+        ORDER BY c.conrelid::regclass::text, c.conname
+    """
+    _sql_get_index_introspection = r"""
+        SELECT
+            i.indexrelid::regclass::text,
+            i.indrelid::regclass::text,
+            array(
+                SELECT a.attname
+                FROM (
+                    SELECT unnest(i.indkey)
+                    UNION
+                    SELECT unnest(regexp_matches(i.indexprs::text, ':varattno (\d+)', 'g'))::int
+                    UNION
+                    SELECT unnest(regexp_matches(i.indpred::text, ':varattno (\d+)', 'g'))::int
+                ) cols(varattno)
+                INNER JOIN pg_attribute AS a ON cols.varattno = a.attnum
+                WHERE a.attrelid = i.indrelid
+            )
+        FROM pg_index i
+        LEFT JOIN pg_constraint c ON i.indexrelid = c.conindid
+        WHERE indrelid::regclass::text = %s
+        AND c.conindid IS NULL
+        ORDER BY i.indrelid::regclass::text, i.indexrelid::regclass::text
+    """
 
     _varchar_type_regexp = re.compile(r'^varchar\((?P<max_length>\d+)\)$')
     _numeric_type_regexp = re.compile(r'^numeric\((?P<precision>\d+), *(?P<scale>\d+)\)$')
@@ -508,6 +558,7 @@ class DatabaseSchemaEditorMixin:
                 DeprecationWarning,
             )
             self.KEEP_DEFAULT = False
+        self.EXPLICIT_CONSTRAINTS_DROP = getattr(settings, "ZERO_DOWNTIME_MIGRATIONS_EXPLICIT_CONSTRAINTS_DROP", True)
 
     def execute(self, sql, params=()):
         if sql is DUMMY_SQL:
@@ -599,13 +650,58 @@ class DatabaseSchemaEditorMixin:
                 self.execute(sql)
             self.deferred_sql.clear()
 
+    def _get_constraints(self, cursor, model):
+        cursor.execute(self._sql_get_table_constraints_introspection, [model._meta.db_table, model._meta.db_table])
+        for constraint, kind, table, table_ref, columns, columns_ref in cursor.fetchall():
+            yield constraint, kind, table, table_ref, columns, columns_ref
+
+    def _get_indexes(self, cursor, model):
+        cursor.execute(self._sql_get_index_introspection, [model._meta.db_table])
+        for index, table, columns in cursor.fetchall():
+            yield index, table, columns
+
+    def _drop_collect_sql_introspection_related_duplicates(self, drop_constraint_queries):
+        """
+            django internals use introspection to find related constraints and perform action if constraint exists
+            dropping constraints before dropping table or column can duplicate same logic in django internals
+            in this case for sqlmigrate drop constraint sql can be duplicated as no physical constraint drop perform
+            so just remove constraint drop duplicates for sqlmigrate
+        """
+        if self.collect_sql:
+            handled_queries = set()
+            drops = set()
+            for i in range(len(self.collected_sql)):
+                for j in range(len(drop_constraint_queries)):
+                    if all(
+                        self.collected_sql[i + k] == drop_constraint_queries[j][k]
+                        for k in range(len(drop_constraint_queries[j]))
+                    ):
+                        if j in handled_queries:
+                            drops |= {i + k for k in range(len(drop_constraint_queries[j]))}
+                        handled_queries.add(j)
+            self.collected_sql = [query for i, query in enumerate(self.collected_sql) if i not in drops]
+
     def create_model(self, model):
         super().create_model(model)
         self._flush_deferred_sql()
 
     def delete_model(self, model):
+        drop_constraint_queries = []
+        if self.EXPLICIT_CONSTRAINTS_DROP:
+            with self.connection.cursor() as cursor:
+                for constraint, kind, table, table_ref, columns, columns_ref in self._get_constraints(cursor, model):
+                    if kind == "f":
+                        last_collected_sql = len(self.collected_sql) if self.collect_sql else None
+                        self.execute(Statement(
+                            self.sql_delete_fk,
+                            table=Table(table, self.quote_name),
+                            name=self.quote_name(constraint),
+                        ))
+                        if self.collect_sql:
+                            drop_constraint_queries.append(self.collected_sql[last_collected_sql:])
         super().delete_model(model)
         self._flush_deferred_sql()
+        self._drop_collect_sql_introspection_related_duplicates(drop_constraint_queries)
 
     def alter_index_together(self, model, old_index_together, new_index_together):
         super().alter_index_together(model, old_index_together, new_index_together)
@@ -641,8 +737,56 @@ class DatabaseSchemaEditorMixin:
         self._flush_deferred_sql()
 
     def remove_field(self, model, field):
+        drop_constraint_queries = []
+        if self.EXPLICIT_CONSTRAINTS_DROP:
+            with self.connection.cursor() as cursor:
+                # as foreign key can have index as dependent object it important to drop all foreign keys first
+                for constraint, kind, table, table_ref, columns, columns_ref in self._get_constraints(cursor, model):
+                    # drop foreign key for current model columns
+                    if kind == "f" and table == model._meta.db_table and field.column in columns:
+                        last_collected_sql = len(self.collected_sql) if self.collect_sql else None
+                        self.execute(Statement(
+                            self.sql_delete_fk,
+                            table=Table(table, self.quote_name),
+                            name=self.quote_name(constraint),
+                        ))
+                        if self.collect_sql:
+                            drop_constraint_queries.append(self.collected_sql[last_collected_sql:])
+                    # drop foreign key for target model columns, i.e. backrefs
+                    if kind == "f" and table_ref == model._meta.db_table and field.column in columns_ref:
+                        last_collected_sql = len(self.collected_sql) if self.collect_sql else None
+                        self.execute(Statement(
+                            self.sql_delete_fk,
+                            table=Table(table, self.quote_name),
+                            name=self.quote_name(constraint),
+                        ))
+                        if self.collect_sql:
+                            drop_constraint_queries.append(self.collected_sql[last_collected_sql:])
+                for constraint, kind, table, table_ref, columns, columns_ref in self._get_constraints(cursor, model):
+                    # drop unique constraints for current model columns
+                    if kind == "u" and table == model._meta.db_table and field.column in columns:
+                        last_collected_sql = len(self.collected_sql) if self.collect_sql else None
+                        self.execute(Statement(
+                            self.sql_delete_unique,
+                            table=Table(table, self.quote_name),
+                            name=self.quote_name(constraint),
+                        ))
+                        if self.collect_sql:
+                            drop_constraint_queries.append(self.collected_sql[last_collected_sql:])
+                for index, table, columns in self._get_indexes(cursor, model):
+                    # drop indexes for current model columns
+                    if table == model._meta.db_table and field.column in columns:
+                        last_collected_sql = len(self.collected_sql) if self.collect_sql else None
+                        self.execute(Statement(
+                            self.sql_delete_index_concurrently,
+                            table=Table(table, self.quote_name),
+                            name=self.quote_name(index),
+                        ))
+                        if self.collect_sql:
+                            drop_constraint_queries.append(self.collected_sql[last_collected_sql:])
         super().remove_field(model, field)
         self._flush_deferred_sql()
+        self._drop_collect_sql_introspection_related_duplicates(drop_constraint_queries)
 
     def alter_field(self, model, old_field, new_field, strict=False):
         super().alter_field(model, old_field, new_field, strict)
