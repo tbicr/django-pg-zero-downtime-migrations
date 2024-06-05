@@ -17,7 +17,8 @@ RUN apt-get install -q -y --no-install-recommends \
     python3.11 python3.11-distutils \
     python3.12 \
     python3-pip \
-    libgdal34
+    libgdal34 \
+    postgresql-client
 RUN pip3 install --break-system-packages setuptools tox
 
 ADD . /app

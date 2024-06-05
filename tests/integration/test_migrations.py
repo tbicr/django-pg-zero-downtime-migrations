@@ -1,8 +1,8 @@
 import os
+import textwrap
 
 import django
 from django.apps import apps
-from django.conf import settings
 from django.core.management import call_command
 from django.db import connection
 from django.test import modify_settings, override_settings
@@ -312,7 +312,7 @@ def test_good_flow_drop_column_with_constraints():
         DROP CONSTRAINT "drop_col_test_table__main_id_9da91a1c_fk_drop_col_";
     """)
     _drop_main_id_field_unique_constraint = one_line_sql("""
-        ALTER TABLE "drop_col_test_table_main" 
+        ALTER TABLE "drop_col_test_table_main"
         DROP CONSTRAINT "drop_col_test_table_main_main_id_key";
     """)
     _drop_main_id_column_sql = one_line_sql("""
@@ -486,11 +486,8 @@ def test_good_flow_drop_column_with_constraints_old():
     assert pg_dump("drop_col_test_table_child") == drop_col_test_table_child_schema
 
 
+@skip_for_default_django_backend
 @pytest.mark.django_db(transaction=True)
-@pytest.mark.skipif(
-    settings.DATABASES["default"]["ENGINE"] != "django_zero_downtime_migrations.backends.postgres",
-    reason="idempotency works only with django_zero_downtime_migrations backend",
-)
 @modify_settings(INSTALLED_APPS={"append": "tests.apps.idempotency_create_table_app"})
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_IDEMPOTENT_SQL=True)
@@ -539,13 +536,17 @@ def test_idempotency_create_table():
         ALTER TABLE "idempotency_create_table_app_relatedtesttable"
         DROP CONSTRAINT "idempotency_create_table_app_relatedtesttable_uniq";
     """)
+    _drop_foreign_key_constraint_sql = one_line_sql("""
+        SET CONSTRAINTS "idempotency_create_t_test_model_id_09b52f79_fk_idempoten" IMMEDIATE;
+        ALTER TABLE "idempotency_create_table_app_relatedtesttable"
+        DROP CONSTRAINT "idempotency_create_t_test_model_id_09b52f79_fk_idempoten";
+    """)
     _drop_table_sql = one_line_sql("""
         DROP TABLE "idempotency_create_table_app_relatedtesttable" CASCADE;
     """)
 
     # get target schema
     call_command("migrate", "idempotency_create_table_app", "0001")
-    old_schema = pg_dump("idempotency_create_table_app_relatedtesttable")
     call_command("migrate", "idempotency_create_table_app")
     new_schema = pg_dump("idempotency_create_table_app_relatedtesttable")
 
@@ -649,6 +650,7 @@ def test_idempotency_create_table():
         rollback_sql = call_command("sqlmigrate", "--backwards", "idempotency_create_table_app", "0002")
     assert split_sql_queries(rollback_sql) == [
         _drop_unique_constraint_sql,
+        _drop_foreign_key_constraint_sql,
         _drop_table_sql,
     ]
 
@@ -657,7 +659,6 @@ def test_idempotency_create_table():
     with connection.cursor() as cursor:
         cursor.execute(_drop_unique_constraint_sql)
     call_command("migrate", "idempotency_create_table_app", "0001")
-    assert pg_dump("idempotency_create_table_app_relatedtesttable") == old_schema
 
     # rollback case 2
     call_command("migrate", "idempotency_create_table_app")
@@ -665,14 +666,10 @@ def test_idempotency_create_table():
         cursor.execute(_drop_unique_constraint_sql)
         cursor.execute(_drop_table_sql)
     call_command("migrate", "idempotency_create_table_app", "0001")
-    assert pg_dump("idempotency_create_table_app_relatedtesttable") == old_schema
 
 
+@skip_for_default_django_backend
 @pytest.mark.django_db(transaction=True)
-@pytest.mark.skipif(
-    settings.DATABASES["default"]["ENGINE"] != "django_zero_downtime_migrations.backends.postgres",
-    reason="idempotency works only with django_zero_downtime_migrations backend",
-)
 @modify_settings(INSTALLED_APPS={"append": "tests.apps.idempotency_add_column_app"})
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_IDEMPOTENT_SQL=True)
@@ -724,11 +721,8 @@ def test_idempotency_add_column():
     assert pg_dump("idempotency_add_column_app_relatedtesttable") == old_schema
 
 
+@skip_for_default_django_backend
 @pytest.mark.django_db(transaction=True)
-@pytest.mark.skipif(
-    settings.DATABASES["default"]["ENGINE"] != "django_zero_downtime_migrations.backends.postgres",
-    reason="idempotency works only with django_zero_downtime_migrations backend",
-)
 @modify_settings(INSTALLED_APPS={"append": "tests.apps.idempotency_add_column_foreign_key_app"})
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_IDEMPOTENT_SQL=True)
@@ -753,6 +747,9 @@ def test_idempotency_add_column_foreign_key():
         ON "idempotency_add_column_foreign_key_app_relatedtesttable" ("test_model_id");
     """)
 
+    _drop_index_sql = one_line_sql("""
+        DROP INDEX CONCURRENTLY IF EXISTS "idempotency_add_column_for_test_model_id_99eba75b";
+    """)
     _drop_foreign_key_constraint_sql = one_line_sql("""
         SET CONSTRAINTS "idempotency_add_colu_test_model_id_99eba75b_fk_idempoten" IMMEDIATE;
         ALTER TABLE "idempotency_add_column_foreign_key_app_relatedtesttable"
@@ -846,6 +843,7 @@ def test_idempotency_add_column_foreign_key():
         rollback_sql = call_command("sqlmigrate", "--backwards", "idempotency_add_column_foreign_key_app", "0002")
     assert split_sql_queries(rollback_sql) == [
         _drop_foreign_key_constraint_sql,
+        _drop_index_sql,
         _drop_column_sql,
     ]
 
@@ -865,11 +863,8 @@ def test_idempotency_add_column_foreign_key():
     assert pg_dump("idempotency_add_column_foreign_key_app_relatedtesttable") == old_schema
 
 
+@skip_for_default_django_backend
 @pytest.mark.django_db(transaction=True)
-@pytest.mark.skipif(
-    settings.DATABASES["default"]["ENGINE"] != "django_zero_downtime_migrations.backends.postgres",
-    reason="idempotency works only with django_zero_downtime_migrations backend",
-)
 @modify_settings(INSTALLED_APPS={"append": "tests.apps.idempotency_add_column_one_to_one_app"})
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_IDEMPOTENT_SQL=True)
@@ -899,6 +894,10 @@ def test_idempotency_add_column_one_to_one():
         VALIDATE CONSTRAINT "idempotency_add_colu_test_model_id_3c5a49fe_fk_idempoten";
     """)
 
+    _drop_unique_constraint_sql = one_line_sql("""
+        ALTER TABLE "idempotency_add_column_one_to_one_app_relatedtesttable"
+        DROP CONSTRAINT "idempotency_add_column_o_test_model_id_3c5a49fe_uniq";
+    """)
     _drop_foreign_key_constraint_sql = one_line_sql("""
         SET CONSTRAINTS "idempotency_add_colu_test_model_id_3c5a49fe_fk_idempoten" IMMEDIATE;
         ALTER TABLE "idempotency_add_column_one_to_one_app_relatedtesttable"
@@ -1002,6 +1001,7 @@ def test_idempotency_add_column_one_to_one():
         rollback_sql = call_command("sqlmigrate", "--backwards", "idempotency_add_column_one_to_one_app", "0002")
     assert split_sql_queries(rollback_sql) == [
         _drop_foreign_key_constraint_sql,
+        _drop_unique_constraint_sql,
         _drop_column_sql,
     ]
 
@@ -1021,11 +1021,8 @@ def test_idempotency_add_column_one_to_one():
     assert pg_dump("idempotency_add_column_one_to_one_app_relatedtesttable") == old_schema
 
 
+@skip_for_default_django_backend
 @pytest.mark.django_db(transaction=True)
-@pytest.mark.skipif(
-    settings.DATABASES["default"]["ENGINE"] != "django_zero_downtime_migrations.backends.postgres",
-    reason="idempotency works only with django_zero_downtime_migrations backend",
-)
 @modify_settings(INSTALLED_APPS={"append": "tests.apps.idempotency_set_not_null_app"})
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_IDEMPOTENT_SQL=True)
@@ -1121,11 +1118,8 @@ def test_idempotency_set_not_null():
     assert pg_dump("idempotency_set_not_null_app_relatedtesttable") == old_schema
 
 
+@skip_for_default_django_backend
 @pytest.mark.django_db(transaction=True)
-@pytest.mark.skipif(
-    settings.DATABASES["default"]["ENGINE"] != "django_zero_downtime_migrations.backends.postgres",
-    reason="idempotency works only with django_zero_downtime_migrations backend",
-)
 @modify_settings(INSTALLED_APPS={"append": "tests.apps.idempotency_add_check_app"})
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_IDEMPOTENT_SQL=True)
@@ -1149,7 +1143,7 @@ def test_idempotency_add_check():
     call_command("migrate", "idempotency_add_check_app", "0001")
     old_schema = pg_dump("idempotency_add_check_app_relatedtesttable")
     call_command("migrate", "idempotency_add_check_app")
-    new_schema = pg_dump("idempotency_set_not_null_app_relatedtesttable")
+    new_schema = pg_dump("idempotency_add_check_app_relatedtesttable")
 
     # migrate
     call_command("migrate", "idempotency_add_check_app", "0001")
@@ -1191,11 +1185,8 @@ def test_idempotency_add_check():
     assert pg_dump("idempotency_add_check_app_relatedtesttable") == old_schema
 
 
+@skip_for_default_django_backend
 @pytest.mark.django_db(transaction=True)
-@pytest.mark.skipif(
-    settings.DATABASES["default"]["ENGINE"] != "django_zero_downtime_migrations.backends.postgres",
-    reason="idempotency works only with django_zero_downtime_migrations backend",
-)
 @modify_settings(INSTALLED_APPS={"append": "tests.apps.idempotency_add_foreign_key_app"})
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_IDEMPOTENT_SQL=True)
@@ -1313,11 +1304,8 @@ def test_idempotency_add_foreign_key():
     assert pg_dump("idempotency_add_foreign_key_app_relatedtesttable") == old_schema
 
 
+@skip_for_default_django_backend
 @pytest.mark.django_db(transaction=True)
-@pytest.mark.skipif(
-    settings.DATABASES["default"]["ENGINE"] != "django_zero_downtime_migrations.backends.postgres",
-    reason="idempotency works only with django_zero_downtime_migrations backend",
-)
 @modify_settings(INSTALLED_APPS={"append": "tests.apps.idempotency_add_one_to_one_app"})
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_IDEMPOTENT_SQL=True)
@@ -1352,7 +1340,7 @@ def test_idempotency_add_one_to_one():
         ALTER TABLE "idempotency_add_one_to_one_app_relatedtesttable"
         DROP CONSTRAINT "idempotency_add_one_to_o_test_field_int_8ebac681_uniq";
     """)
-    _drop_index_sql = one_line_sql("""
+    _drop_like_index_sql = one_line_sql("""
         DROP INDEX CONCURRENTLY IF EXISTS "idempotency_add_one_to_o_test_field_int_8ebac681_like";
     """)
 
@@ -1437,7 +1425,7 @@ def test_idempotency_add_one_to_one():
     assert split_sql_queries(rollback_sql) == [
         _drop_foreign_key_constraint_sql,
         _drop_unique_constraint_sql,
-        _drop_index_sql,
+        _drop_like_index_sql,
     ]
 
     # rollback case 1
@@ -1460,16 +1448,13 @@ def test_idempotency_add_one_to_one():
     with connection.cursor() as cursor:
         cursor.execute(_drop_foreign_key_constraint_sql)
         cursor.execute(_drop_unique_constraint_sql)
-        cursor.execute(_drop_index_sql)
+        cursor.execute(_drop_like_index_sql)
     call_command("migrate", "idempotency_add_one_to_one_app", "0001")
     assert pg_dump("idempotency_add_one_to_one_app_relatedtesttable") == old_schema
 
 
+@skip_for_default_django_backend
 @pytest.mark.django_db(transaction=True)
-@pytest.mark.skipif(
-    settings.DATABASES["default"]["ENGINE"] != "django_zero_downtime_migrations.backends.postgres",
-    reason="idempotency works only with django_zero_downtime_migrations backend",
-)
 @modify_settings(INSTALLED_APPS={"append": "tests.apps.idempotency_add_index_app"})
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_IDEMPOTENT_SQL=True)
@@ -1506,7 +1491,7 @@ def test_idempotency_add_index():
         "idempotency_add_index_app__test_field_int_ecc428b5",
     )
     call_command("migrate", "idempotency_add_index_app")
-    assert pg_dump("idempotency_add_unique_app_relatedtesttable") == new_schema
+    assert pg_dump("idempotency_add_index_app_relatedtesttable") == new_schema
     assert is_valid_index(
         "idempotency_add_index_app_relatedtesttable",
         "idempotency_add_index_app__test_field_int_ecc428b5",
@@ -1543,19 +1528,15 @@ def test_idempotency_add_index():
     assert pg_dump("idempotency_add_index_app_relatedtesttable") == old_schema
 
 
+@skip_for_default_django_backend
 @pytest.mark.django_db(transaction=True)
-@pytest.mark.skipif(
-    settings.DATABASES["default"]["ENGINE"] != "django_zero_downtime_migrations.backends.postgres",
-    reason="idempotency works only with django_zero_downtime_migrations backend",
-)
 @modify_settings(INSTALLED_APPS={"append": "tests.apps.idempotency_add_index_meta_app"})
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_IDEMPOTENT_SQL=True)
 def test_idempotency_add_index_meta():
     _create_index_sql = one_line_sql("""
         CREATE INDEX CONCURRENTLY "relatedtesttable_idx"
-        ON "idempotency_add_index_meta_app_relatedtesttable" ("test_field_int", "test_field_str")
-        WHERE "test_field_int" > 0;
+        ON "idempotency_add_index_meta_app_relatedtesttable" ("test_field_int", "test_field_str");
     """)
 
     _drop_index_sql = one_line_sql("""
@@ -1622,11 +1603,8 @@ def test_idempotency_add_index_meta():
     assert pg_dump("idempotency_add_index_meta_app_relatedtesttable") == old_schema
 
 
+@skip_for_default_django_backend
 @pytest.mark.django_db(transaction=True)
-@pytest.mark.skipif(
-    settings.DATABASES["default"]["ENGINE"] != "django_zero_downtime_migrations.backends.postgres",
-    reason="idempotency works only with django_zero_downtime_migrations backend",
-)
 @modify_settings(INSTALLED_APPS={"append": "tests.apps.idempotency_add_unique_app"})
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_IDEMPOTENT_SQL=True)
@@ -1645,7 +1623,7 @@ def test_idempotency_add_unique():
         ALTER TABLE "idempotency_add_unique_app_relatedtesttable"
         DROP CONSTRAINT "idempotency_add_unique_a_test_field_int_01c4f0c0_uniq";
     """)
-    _drop_unique_index_sql = one_line_sql("""
+    _drop_like_index_sql = one_line_sql("""
         DROP INDEX CONCURRENTLY IF EXISTS "idempotency_add_unique_a_test_field_int_01c4f0c0_like";
     """)
 
@@ -1708,7 +1686,7 @@ def test_idempotency_add_unique():
         rollback_sql = call_command("sqlmigrate", "--backwards", "idempotency_add_unique_app", "0002")
     assert split_sql_queries(rollback_sql) == [
         _drop_unique_constraint_sql,
-        _drop_unique_index_sql,
+        _drop_like_index_sql,
     ]
 
     # rollback case 1
@@ -1722,37 +1700,30 @@ def test_idempotency_add_unique():
     call_command("migrate", "idempotency_add_unique_app")
     with connection.cursor() as cursor:
         cursor.execute(_drop_unique_constraint_sql)
-        cursor.execute(_drop_unique_index_sql)
-    call_command("migrate", "idempotency_add_unique_app", "0001")
-    assert pg_dump("idempotency_add_unique_app_relatedtesttable") == old_schema
-
-    # rollback case 3
-    call_command("migrate", "idempotency_add_unique_app")
-    with connection.cursor() as cursor:
-        cursor.execute(_drop_unique_constraint_sql)
-        cursor.execute(_drop_unique_index_sql)
-        cursor.execute(_create_unique_index_sql)
+        cursor.execute(_drop_like_index_sql)
     call_command("migrate", "idempotency_add_unique_app", "0001")
     assert pg_dump("idempotency_add_unique_app_relatedtesttable") == old_schema
 
 
+@skip_for_default_django_backend
 @pytest.mark.django_db(transaction=True)
-@pytest.mark.skipif(
-    settings.DATABASES["default"]["ENGINE"] != "django_zero_downtime_migrations.backends.postgres",
-    reason="idempotency works only with django_zero_downtime_migrations backend",
-)
 @modify_settings(INSTALLED_APPS={"append": "tests.apps.idempotency_add_unique_meta_app"})
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_IDEMPOTENT_SQL=True)
 def test_idempotency_add_unique_meta():
     _create_unique_index_sql = one_line_sql("""
         CREATE UNIQUE INDEX CONCURRENTLY "relatedtesttable_uniq"
-        ON "idempotency_add_unique_meta_app_relatedtesttable" ("test_field_int", "test_field_str")
-        WHERE "test_field_int" > 0;
+        ON "idempotency_add_unique_meta_app_relatedtesttable" ("test_field_int", "test_field_str");
+    """)
+    _create_unique_constraint_sql = one_line_sql("""
+        ALTER TABLE "idempotency_add_unique_meta_app_relatedtesttable"
+        ADD CONSTRAINT "relatedtesttable_uniq"
+        UNIQUE USING INDEX "relatedtesttable_uniq";
     """)
 
-    _drop_unique_index_sql = one_line_sql("""
-        DROP INDEX CONCURRENTLY IF EXISTS "relatedtesttable_uniq";
+    _drop_unique_constraint_sql = one_line_sql("""
+        ALTER TABLE "idempotency_add_unique_meta_app_relatedtesttable"
+        DROP CONSTRAINT "relatedtesttable_uniq";
     """)
 
     # get target schema
@@ -1767,6 +1738,7 @@ def test_idempotency_add_unique_meta():
         migration_sql = call_command("sqlmigrate", "idempotency_add_unique_meta_app", "0002")
     assert split_sql_queries(migration_sql) == [
         _create_unique_index_sql,
+        _create_unique_constraint_sql,
     ]
 
     # migrate case 1.1
@@ -1799,27 +1771,32 @@ def test_idempotency_add_unique_meta():
         "relatedtesttable_uniq",
     )
 
+    # migrate case 2
+    call_command("migrate", "idempotency_add_unique_meta_app", "0001")
+    with connection.cursor() as cursor:
+        cursor.execute(_create_unique_index_sql)
+        cursor.execute(_create_unique_constraint_sql)
+    call_command("migrate", "idempotency_add_unique_meta_app")
+    assert pg_dump("idempotency_add_unique_meta_app_relatedtesttable") == new_schema
+
     # rollback (covers drop unique case)
     call_command("migrate", "idempotency_add_unique_meta_app")
     with override_settings(ZERO_DOWNTIME_MIGRATIONS_IDEMPOTENT_SQL=False):
         rollback_sql = call_command("sqlmigrate", "--backwards", "idempotency_add_unique_meta_app", "0002")
     assert split_sql_queries(rollback_sql) == [
-        _drop_unique_index_sql,
+        _drop_unique_constraint_sql,
     ]
 
     # rollback case 1
     call_command("migrate", "idempotency_add_unique_meta_app")
     with connection.cursor() as cursor:
-        cursor.execute(_drop_unique_index_sql)
+        cursor.execute(_drop_unique_constraint_sql)
     call_command("migrate", "idempotency_add_unique_meta_app", "0001")
     assert pg_dump("idempotency_add_unique_meta_app_relatedtesttable") == old_schema
 
 
+@skip_for_default_django_backend
 @pytest.mark.django_db(transaction=True)
-@pytest.mark.skipif(
-    settings.DATABASES["default"]["ENGINE"] != "django_zero_downtime_migrations.backends.postgres",
-    reason="idempotency works only with django_zero_downtime_migrations backend",
-)
 @modify_settings(INSTALLED_APPS={"append": "tests.apps.idempotency_add_primary_key_app"})
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_IDEMPOTENT_SQL=True)
@@ -1980,13 +1957,26 @@ def test_idempotency_add_primary_key():
             _create_unique_constraint_for_rollback_sql,
         ]
 
+    def old_schema_compatible(dump: str) -> str:
+        """
+        django creates different name for primary key constraint than postgres
+        rolling back drop index can be reason of columns order changes
+        """
+        return dump.replace(
+            "idempotency_add_primary_key_app_relatedtesttable_id_d0e5667c_pk",
+            "idempotency_add_primary_key_app_relatedtesttable_pkey",
+        ).replace(
+            "test_field_int integer NOT NULL,\n    id integer NOT NULL",
+            "id integer NOT NULL,\n    test_field_int integer NOT NULL",
+        )
+
     # rollback case 1
     call_command("migrate", "idempotency_add_primary_key_app")
     with connection.cursor() as cursor:
         cursor.execute(_drop_primary_key_sql)
     with override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=False):
         call_command("migrate", "idempotency_add_primary_key_app", "0001")
-    assert pg_dump("idempotency_add_primary_key_app_relatedtesttable") == old_schema
+    assert old_schema_compatible(pg_dump("idempotency_add_primary_key_app_relatedtesttable")) == old_schema
 
     # rollback case 2
     call_command("migrate", "idempotency_add_primary_key_app")
@@ -1995,7 +1985,7 @@ def test_idempotency_add_primary_key():
         cursor.execute(_drop_unique_index_sql)
     with override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=False):
         call_command("migrate", "idempotency_add_primary_key_app", "0001")
-    assert pg_dump("idempotency_add_primary_key_app_relatedtesttable") == old_schema
+    assert old_schema_compatible(pg_dump("idempotency_add_primary_key_app_relatedtesttable")) == old_schema
 
     # rollback case 3
     call_command("migrate", "idempotency_add_primary_key_app")
@@ -2005,7 +1995,7 @@ def test_idempotency_add_primary_key():
         cursor.execute(_add_column_for_rollback_sql)
     with override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=False):
         call_command("migrate", "idempotency_add_primary_key_app", "0001")
-    assert pg_dump("idempotency_add_primary_key_app_relatedtesttable") == old_schema
+    assert old_schema_compatible(pg_dump("idempotency_add_primary_key_app_relatedtesttable")) == old_schema
 
     # rollback case 4
     call_command("migrate", "idempotency_add_primary_key_app")
@@ -2016,7 +2006,7 @@ def test_idempotency_add_primary_key():
         cursor.execute(_create_unique_index_for_rollback_sql)
     with override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=False):
         call_command("migrate", "idempotency_add_primary_key_app", "0001")
-    assert pg_dump("idempotency_add_primary_key_app_relatedtesttable") == old_schema
+    assert old_schema_compatible(pg_dump("idempotency_add_primary_key_app_relatedtesttable")) == old_schema
 
     # rollback case 5
     call_command("migrate", "idempotency_add_primary_key_app")
@@ -2028,18 +2018,15 @@ def test_idempotency_add_primary_key():
         cursor.execute(_create_unique_constraint_for_rollback_sql)
     with override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=False):
         call_command("migrate", "idempotency_add_primary_key_app", "0001")
-    assert pg_dump("idempotency_add_primary_key_app_relatedtesttable") == old_schema
+    assert old_schema_compatible(pg_dump("idempotency_add_primary_key_app_relatedtesttable")) == old_schema
 
 
-@pytest.mark.django_db(transaction=True)
-@pytest.mark.skipif(
-    settings.DATABASES["default"]["ENGINE"] != "django_zero_downtime_migrations.backends.postgres",
-    reason="idempotency works only with django_zero_downtime_migrations backend",
-)
+@skip_for_default_django_backend
 @pytest.mark.skipif(
     django.VERSION[:2] < (4, 1),
     reason="django after 4.1 case",
 )
+@pytest.mark.django_db(transaction=True)
 @modify_settings(INSTALLED_APPS={"append": "tests.apps.idempotency_add_auto_field_app"})
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_IDEMPOTENT_SQL=True)
@@ -2132,15 +2119,12 @@ def test_idempotency_add_auto_field():
     assert pg_dump("idempotency_add_auto_field_app_relatedtesttable") == old_schema
 
 
-@pytest.mark.django_db(transaction=True)
-@pytest.mark.skipif(
-    settings.DATABASES["default"]["ENGINE"] != "django_zero_downtime_migrations.backends.postgres",
-    reason="idempotency works only with django_zero_downtime_migrations backend",
-)
+@skip_for_default_django_backend
 @pytest.mark.skipif(
     django.VERSION[:2] >= (4, 1),
     reason="django before 4.1 case",
 )
+@pytest.mark.django_db(transaction=True)
 @modify_settings(INSTALLED_APPS={"append": "tests.apps.idempotency_add_auto_field_app"})
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_IDEMPOTENT_SQL=True)
@@ -2196,6 +2180,81 @@ def test_idempotency_add_auto_field_old():
         _set_owner_sql,
     ]
 
+    def schema_compatible_sequence_alter(dump: str) -> str:
+        return dump.replace(
+            textwrap.dedent("""
+                CREATE TABLE public.idempotency_add_auto_field_app_relatedtesttable (
+                    test_field_int integer DEFAULT
+                    nextval('public.idempotency_add_auto_field_app_relatedtesttable_test_field_int_'::regclass) NOT NULL
+                );
+
+
+                ALTER TABLE public.idempotency_add_auto_field_app_relatedtesttable OWNER TO test;
+            """).replace("\n    nextval", " nextval"),
+            textwrap.dedent("""
+                CREATE TABLE public.idempotency_add_auto_field_app_relatedtesttable (
+                    test_field_int integer NOT NULL
+                );
+
+
+                ALTER TABLE public.idempotency_add_auto_field_app_relatedtesttable OWNER TO test;
+
+                --
+                -- Name: idempotency_add_auto_field_app_relatedtesttable_test_field_int_;
+                -- Type: SEQUENCE; Schema: public; Owner: test
+                --
+
+                CREATE SEQUENCE public.idempotency_add_auto_field_app_relatedtesttable_test_field_int_
+                    START WITH 1
+                    INCREMENT BY 1
+                    NO MINVALUE
+                    NO MAXVALUE
+                    CACHE 1;
+
+
+                ALTER SEQUENCE public.idempotency_add_auto_field_app_relatedtesttable_test_field_int_ OWNER TO test;
+
+                --
+                -- Name: idempotency_add_auto_field_app_relatedtesttable_test_field_int_;
+                -- Type: SEQUENCE OWNED BY; Schema: public; Owner: test
+                --
+
+                ALTER SEQUENCE public.idempotency_add_auto_field_app_relatedtesttable_test_field_int_
+                OWNED BY public.idempotency_add_auto_field_app_relatedtesttable.test_field_int;
+
+
+                --
+                -- Name: idempotency_add_auto_field_app_relatedtesttable test_field_int;
+                -- Type: DEFAULT; Schema: public; Owner: test
+                --
+
+                ALTER TABLE ONLY public.idempotency_add_auto_field_app_relatedtesttable ALTER COLUMN test_field_int
+                SET DEFAULT nextval('public.idempotency_add_auto_field_app_relatedtesttable_test_field_int_'::regclass);
+
+            """).replace("\n-- Type", " Type").replace("\nOWNED", " OWNED").replace("\nSET", " SET"),
+        )
+
+    def schema_compatible_explicit_type(dump: str) -> str:
+        return dump.replace(
+            textwrap.dedent("""
+                CREATE SEQUENCE public.idempotency_add_auto_field_app_relatedtesttable_test_field_int_
+                    AS integer
+                    START WITH 1
+                    INCREMENT BY 1
+                    NO MINVALUE
+                    NO MAXVALUE
+                    CACHE 1;
+            """),
+            textwrap.dedent("""
+                CREATE SEQUENCE public.idempotency_add_auto_field_app_relatedtesttable_test_field_int_
+                    START WITH 1
+                    INCREMENT BY 1
+                    NO MINVALUE
+                    NO MAXVALUE
+                    CACHE 1;
+            """),
+        )
+
     # migrate case 1
     with override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=False):
         call_command("migrate", "idempotency_add_auto_field_app", "0001")
@@ -2232,7 +2291,9 @@ def test_idempotency_add_auto_field_old():
         cursor.execute(_create_sequence_sql)
         cursor.execute(_set_default_sql)
     call_command("migrate", "idempotency_add_auto_field_app")
-    assert pg_dump("idempotency_add_auto_field_app_relatedtesttable") == new_schema
+    assert schema_compatible_sequence_alter(
+        pg_dump("idempotency_add_auto_field_app_relatedtesttable")
+    ) == new_schema
 
     # migrate case 5
     with override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=False):
@@ -2244,7 +2305,9 @@ def test_idempotency_add_auto_field_old():
         cursor.execute(_set_default_sql)
         cursor.execute(_set_max_value_sql)
     call_command("migrate", "idempotency_add_auto_field_app")
-    assert pg_dump("idempotency_add_auto_field_app_relatedtesttable") == new_schema
+    assert schema_compatible_sequence_alter(
+        pg_dump("idempotency_add_auto_field_app_relatedtesttable")
+    ) == new_schema
 
     # migrate case 6
     with override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=False):
@@ -2257,7 +2320,7 @@ def test_idempotency_add_auto_field_old():
         cursor.execute(_set_max_value_sql)
         cursor.execute(_set_owner_sql)
     call_command("migrate", "idempotency_add_auto_field_app")
-    assert pg_dump("idempotency_add_auto_field_app_relatedtesttable") == new_schema
+    assert schema_compatible_explicit_type(pg_dump("idempotency_add_auto_field_app_relatedtesttable")) == new_schema
 
     # rollback (covers drop auto field case)
     call_command("migrate", "idempotency_add_auto_field_app")

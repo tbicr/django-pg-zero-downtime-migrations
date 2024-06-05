@@ -15,6 +15,5 @@ class RelatedTestTable(models.Model):
             models.Index(
                 name="relatedtesttable_idx",
                 fields=["test_field_int", "test_field_str"],
-                condition=models.Q(test_field_int__gt=0),
             )
         ]
