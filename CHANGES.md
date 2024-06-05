@@ -7,6 +7,7 @@
   - added `ZERO_DOWNTIME_MIGRATIONS_EXPLICIT_CONSTRAINTS_DROP` settings and added dropping constraints and indexes before drop column or table
   - fixed sqlmigrate in idempotent mode
   - fixed creation unique constraint with include parameter
+  - fixed idempotent mode tests
   - updated unsafe migrations links to documentation
   - updated patched code to latest django version
   - updated test image to ubuntu 24.04

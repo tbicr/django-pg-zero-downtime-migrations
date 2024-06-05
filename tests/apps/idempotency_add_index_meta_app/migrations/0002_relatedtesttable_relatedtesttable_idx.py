@@ -13,9 +13,7 @@ class Migration(migrations.Migration):
         migrations.AddIndex(
             model_name="relatedtesttable",
             index=models.Index(
-                condition=models.Q(("test_field_int__gt", 0)),
-                fields=["test_field_int", "test_field_str"],
-                name="relatedtesttable_idx",
+                fields=["test_field_int", "test_field_str"], name="relatedtesttable_idx"
             ),
         ),
     ]
