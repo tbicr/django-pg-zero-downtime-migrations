@@ -124,6 +124,18 @@ To avoid manual schema manipulation idempotent mode allows to rerun failed migra
 
 > _NOTE:_ idempotent mode checks rely only on name and index and constraint valid state, so it can ignore name collisions and recommended do not use it for CI checks.
 
+#### ZERO_DOWNTIME_MIGRATIONS_EXPLICIT_CONSTRAINTS_DROP
+
+Define way to drop foreign key, unique constraints and indexes before drop table or column, default `True`:
+
+    ZERO_DOWNTIME_MIGRATIONS_EXPLICIT_CONSTRAINTS_DROP = True
+
+Allowed values:
+- `True` - before dropping table drop all foreign keys related to this table and before dropping column drop all foreign keys related to this column, unique constraints on this column and indexes used this column.
+- `False` - standard django behaviour that will drop constraints with `CASCADE` mode (some constraints can be dropped explicitly too).
+
+Explicitly dropping constraints and indexes before dropping tables or columns allows for splitting schema-only changes with an `ACCESS EXCLUSIVE` lock and the deletion of physical files, which can take significant time and cause downtime.
+
 #### ZERO_DOWNTIME_MIGRATIONS_KEEP_DEFAULT
 
 Define way keep or drop code defaults on database level when adding new column, default `False`:
@@ -234,7 +246,7 @@ Postgres store values of different types different ways. If you try to convert o
 
 ### Multiversion Concurrency Control
 
-Regarding documentation https://www.postgresql.org/docs/current/static/mvcc-intro.html data consistency in postgres is maintained by using a multiversion model. This means that each SQL statement sees a snapshot of data. It has advantage for adding and deleting columns without any indexes, constrains and defaults do not change exist data, new version of data will be created on `INSERT` and `UPDATE`, delete just mark you record expired. All garbage will be collected later by `VACUUM` or `AUTO VACUUM`.
+Regarding documentation https://www.postgresql.org/docs/current/static/mvcc-intro.html data consistency in postgres is maintained by using a multiversion model. This means that each SQL statement sees a snapshot of data. It has advantage for adding and deleting columns without any indexes, CONSTRAINTS and defaults do not change exist data, new version of data will be created on `INSERT` and `UPDATE`, delete just mark you record expired. All garbage will be collected later by `VACUUM` or `AUTO VACUUM`.
 
 ### Django migrations hacks
 
