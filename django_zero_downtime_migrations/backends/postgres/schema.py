@@ -9,7 +9,6 @@ from django.db.backends.ddl_references import Statement, Table
 from django.db.backends.postgresql.schema import (
     DatabaseSchemaEditor as PostgresDatabaseSchemaEditor
 )
-from django.db.backends.utils import strip_quotes
 from django.db.models import NOT_PROVIDED
 
 

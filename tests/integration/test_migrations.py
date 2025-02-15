@@ -1793,15 +1793,6 @@ def test_idempotency_add_primary_key():
         ALTER TABLE "idempotency_add_primary_key_app_relatedtesttable"
         DROP COLUMN "id" CASCADE;
     """)
-    _create_unique_index_sql_before_django41 = one_line_sql("""
-        CREATE UNIQUE INDEX CONCURRENTLY "idempotency_add_primary__test_field_int_e9cebf24_uniq"
-        ON "idempotency_add_primary_key_app_relatedtesttable" ("test_field_int");
-    """)
-    _create_unique_constraint_sql_before_django41 = one_line_sql("""
-        ALTER TABLE "idempotency_add_primary_key_app_relatedtesttable"
-        ADD CONSTRAINT "idempotency_add_primary__test_field_int_e9cebf24_uniq"
-        UNIQUE USING INDEX "idempotency_add_primary__test_field_int_e9cebf24_uniq";
-    """)
     _create_unique_index_sql = one_line_sql("""
         CREATE UNIQUE INDEX CONCURRENTLY "idempotency_add_primary_k_test_field_int_e9cebf24_pk"
         ON "idempotency_add_primary_key_app_relatedtesttable" ("test_field_int");
