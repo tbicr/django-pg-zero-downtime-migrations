@@ -1,5 +1,9 @@
 # django-pg-zero-downtime-migrations changelog
 
+## Unreleased
+  - dropped support for Python 3.6 and 3.7
+  - dropped support for Django 3.2, 4.0 and 4.1
+
 ## 0.16
   - changed `ADD COLUMN DEFAULT NULL` to safe operation for code default
   - changed `ADD COLUMN DEFAULT NOT NULL` to safe operation for `db_default` in django 5.0+
