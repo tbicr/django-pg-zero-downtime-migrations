@@ -254,17 +254,12 @@ class DatabaseSchemaEditorMixin:
         "AND convalidated"
     )
 
-    if django.VERSION[:2] >= (4, 1):
-        sql_alter_sequence_type = PGAccessExclusive(PostgresDatabaseSchemaEditor.sql_alter_sequence_type)
-        sql_add_identity = PGAccessExclusive(
-            PostgresDatabaseSchemaEditor.sql_add_identity,
-            idempotent_condition=Condition(_sql_identity_exists, False),
-        )
-        sql_drop_indentity = PGAccessExclusive(PostgresDatabaseSchemaEditor.sql_drop_indentity)
-    else:
-        sql_alter_sequence_type = PGAccessExclusive("ALTER SEQUENCE IF EXISTS %(sequence)s AS %(type)s")
-        sql_create_sequence = PGAccessExclusive(PostgresDatabaseSchemaEditor.sql_create_sequence)
-        sql_set_sequence_owner = PGAccessExclusive(PostgresDatabaseSchemaEditor.sql_set_sequence_owner)
+    sql_alter_sequence_type = PGAccessExclusive(PostgresDatabaseSchemaEditor.sql_alter_sequence_type)
+    sql_add_identity = PGAccessExclusive(
+        PostgresDatabaseSchemaEditor.sql_add_identity,
+        idempotent_condition=Condition(_sql_identity_exists, False),
+    )
+    sql_drop_indentity = PGAccessExclusive(PostgresDatabaseSchemaEditor.sql_drop_indentity)
     sql_delete_sequence = PGAccessExclusive(PostgresDatabaseSchemaEditor.sql_delete_sequence)
     sql_create_table = PGAccessExclusive(
         PostgresDatabaseSchemaEditor.sql_create_table,
@@ -447,9 +442,8 @@ class DatabaseSchemaEditorMixin:
         PostgresDatabaseSchemaEditor.sql_delete_index_concurrently
     )
 
-    if django.VERSION[:2] >= (4, 2):
-        sql_alter_table_comment = PGShareUpdateExclusive(PostgresDatabaseSchemaEditor.sql_alter_table_comment)
-        sql_alter_column_comment = PGShareUpdateExclusive(PostgresDatabaseSchemaEditor.sql_alter_column_comment)
+    sql_alter_table_comment = PGShareUpdateExclusive(PostgresDatabaseSchemaEditor.sql_alter_table_comment)
+    sql_alter_column_comment = PGShareUpdateExclusive(PostgresDatabaseSchemaEditor.sql_alter_column_comment)
 
     _sql_column_not_null = MultiStatementSQL(
         PGAccessExclusive(
@@ -845,48 +839,8 @@ class DatabaseSchemaEditorMixin:
         return ""
 
     def _add_column_unique(self, model, field):
-        if django.VERSION[:2] >= (4, 0):
-            self.deferred_sql.append(self._create_unique_sql(model, [field]))
-        else:
-            self.deferred_sql.append(self._create_unique_sql(model, [field.column]))
+        self.deferred_sql.append(self._create_unique_sql(model, [field]))
         return ""
-
-    if django.VERSION[:2] <= (3, 2):
-        def skip_default_on_alter(self, field):
-            """
-            Some backends don't accept default values for certain columns types
-            (i.e. MySQL longtext and longblob) in the ALTER COLUMN statement.
-            """
-            return False
-
-        def column_sql(self, model, field, include_default=False):
-            """
-            Return the column definition for a field. The field must already have
-            had set_attributes_from_name() called.
-            """
-            if not include_default:
-                return super().column_sql(model, field, include_default)
-
-            # Get the column's type and use that as the basis of the SQL.
-            field_db_params = field.db_parameters(connection=self.connection)
-            column_db_type = field_db_params["type"]
-            # Check for fields that aren't actually columns (e.g. M2M).
-            if column_db_type is None:
-                return None, None
-            params = []
-            return (
-                " ".join(
-                    # This appends to the params being returned.
-                    self._iter_column_sql(
-                        column_db_type,
-                        params,
-                        model,
-                        field,
-                        include_default,
-                    )
-                ),
-                params,
-            )
 
     def _patched_iter_column_sql(
         self, column_db_type, params, model, field, field_db_params, include_default
@@ -894,7 +848,7 @@ class DatabaseSchemaEditorMixin:
         yield column_db_type
         if field_db_params.get("collation"):
             yield self._collate_sql(field_db_params.get("collation"))
-        if django.VERSION >= (4, 2) and self.connection.features.supports_comments_inline and field.db_comment:
+        if self.connection.features.supports_comments_inline and field.db_comment:
             yield self._comment_sql(field.db_comment)
         # Work out nullability.
         null = field.null
@@ -1034,16 +988,7 @@ class DatabaseSchemaEditorMixin:
             return new_type_precision >= old_type_precision and new_type_scale == old_type_scale
         return False
 
-    if django.VERSION[:2] < (4, 1):
-        def _get_sequence_name(self, table, column):
-            with self.connection.cursor() as cursor:
-                for sequence in self.connection.introspection.get_sequences(cursor, table):
-                    if sequence["column"] == column:
-                        return sequence["name"]
-            return None
-
-    # TODO: after django 4.1 support drop replace *args, **kwargs with original signature
-    def _alter_column_type_sql(self, model, old_field, new_field, new_type, *args, **kwargs):
+    def _alter_column_type_sql(self, model, old_field, new_field, new_type, old_collation, new_collation):
         old_db_params = old_field.db_parameters(connection=self.connection)
         old_type = old_db_params["type"]
         if not self._immediate_type_cast(old_type, new_type):
@@ -1051,51 +996,7 @@ class DatabaseSchemaEditorMixin:
                 raise UnsafeOperationException(Unsafe.ALTER_COLUMN_TYPE)
             else:
                 warnings.warn(UnsafeOperationWarning(Unsafe.ALTER_COLUMN_TYPE))
-        if django.VERSION[:2] < (4, 1):
-            # old django versions runs in transaction next queries for autofield type changes:
-            # - alter column type
-            # - drop sequence with old type
-            # - create sequence with new type
-            # - alter column set default
-            # - set sequence current value
-            # - set sequence to field
-            # if we run this queries without transaction
-            # then concurrent insertions between drop sequence and end of migration can fail
-            # so simplify migration to two safe steps: alter colum type and alter sequence type
-            serial_fields_map = {
-                "bigserial": "bigint",
-                "serial": "integer",
-                "smallserial": "smallint",
-            }
-            if new_type.lower() in serial_fields_map:
-                column = strip_quotes(new_field.column)
-                table = strip_quotes(model._meta.db_table)
-                sequence_name = self._get_sequence_name(table, column)
-                if sequence_name is not None:
-                    using_sql = ""
-                    if self._field_data_type(old_field) != self._field_data_type(new_field):
-                        using_sql = " USING %(column)s::%(type)s"
-                    return (
-                        (
-                            (self.sql_alter_column_type + using_sql)
-                            % {
-                                "column": self.quote_name(column),
-                                "type": serial_fields_map[new_type.lower()],
-                            },
-                            [],
-                        ),
-                        [
-                            (
-                                self.sql_alter_sequence_type
-                                % {
-                                    "sequence": self.quote_name(sequence_name),
-                                    "type": serial_fields_map[new_type.lower()],
-                                },
-                                [],
-                            ),
-                        ],
-                    )
-        return super()._alter_column_type_sql(model, old_field, new_field, new_type, *args, **kwargs)
+        return super()._alter_column_type_sql(model, old_field, new_field, new_type, old_collation, new_collation)
 
 
 class DatabaseSchemaEditor(DatabaseSchemaEditorMixin, PostgresDatabaseSchemaEditor):
