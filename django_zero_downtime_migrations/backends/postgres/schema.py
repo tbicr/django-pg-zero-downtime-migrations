@@ -955,49 +955,27 @@ class DatabaseSchemaEditorMixin:
         ):
             yield self.connection.ops.tablespace_sql(tablespace, inline=True)
 
-    if django.VERSION >= (4, 1):
-        def _iter_column_sql(
-                self, column_db_type, params, model, field, field_db_params, include_default
-        ):
-            if not include_default:
-                yield from super()._iter_column_sql(
-                    column_db_type,
-                    params,
-                    model,
-                    field,
-                    field_db_params,
-                    include_default,
-                )
-            else:
-                yield from self._patched_iter_column_sql(
-                    column_db_type,
-                    params,
-                    model,
-                    field,
-                    field_db_params,
-                    include_default,
-                )
-    else:
-        def _iter_column_sql(
-                self, column_db_type, params, model, field, include_default
-        ):
-            if not include_default:
-                yield from super()._iter_column_sql(
-                    column_db_type,
-                    params,
-                    model,
-                    field,
-                    include_default,
-                )
-            else:
-                yield from self._patched_iter_column_sql(
-                    column_db_type,
-                    params,
-                    model,
-                    field,
-                    {},
-                    include_default,
-                )
+    def _iter_column_sql(
+            self, column_db_type, params, model, field, field_db_params, include_default
+    ):
+        if not include_default:
+            yield from super()._iter_column_sql(
+                column_db_type,
+                params,
+                model,
+                field,
+                field_db_params,
+                include_default,
+            )
+        else:
+            yield from self._patched_iter_column_sql(
+                column_db_type,
+                params,
+                model,
+                field,
+                field_db_params,
+                include_default,
+            )
 
     def _alter_column_set_not_null(self, model, new_field):
         self.deferred_sql.append(self._sql_column_not_null % {
