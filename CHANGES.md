@@ -3,6 +3,7 @@
 ## 0.17
   - dropped support for Python 3.6 and 3.7
   - dropped support for Django 3.2, 4.0 and 4.1
+  - dropped `migrate_isnotnull_check_constraints` command
 
 ## 0.16
   - changed `ADD COLUMN DEFAULT NULL` to safe operation for code default
