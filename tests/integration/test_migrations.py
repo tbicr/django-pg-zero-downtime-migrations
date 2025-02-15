@@ -191,10 +191,6 @@ def test_good_flow_drop_table_with_constraints():
 
 
 @skip_for_default_django_backend
-@pytest.mark.skipif(
-    django.VERSION[:2] < (4, 0),
-    reason="django before 4.0 case",
-)
 @pytest.mark.django_db(transaction=True)
 @modify_settings(INSTALLED_APPS={"append": "tests.apps.good_flow_drop_column_with_constraints"})
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
@@ -499,14 +495,6 @@ def test_idempotency_create_table():
             "test_model_id" integer NULL
         );
     """)
-    if django.VERSION[:2] < (4, 1):
-        _create_table_sql = one_line_sql("""
-            CREATE TABLE "idempotency_create_table_app_relatedtesttable" (
-                "id" serial NOT NULL PRIMARY KEY,
-                "test_field_int" integer NULL,
-                "test_model_id" integer NULL
-            );
-        """)
     _create_unique_index_sql = one_line_sql("""
         CREATE UNIQUE INDEX CONCURRENTLY "idempotency_create_table_app_relatedtesttable_uniq"
         ON "idempotency_create_table_app_relatedtesttable" ("test_model_id", "test_field_int");
@@ -1805,15 +1793,6 @@ def test_idempotency_add_primary_key():
         ALTER TABLE "idempotency_add_primary_key_app_relatedtesttable"
         DROP COLUMN "id" CASCADE;
     """)
-    _create_unique_index_sql_before_django41 = one_line_sql("""
-        CREATE UNIQUE INDEX CONCURRENTLY "idempotency_add_primary__test_field_int_e9cebf24_uniq"
-        ON "idempotency_add_primary_key_app_relatedtesttable" ("test_field_int");
-    """)
-    _create_unique_constraint_sql_before_django41 = one_line_sql("""
-        ALTER TABLE "idempotency_add_primary_key_app_relatedtesttable"
-        ADD CONSTRAINT "idempotency_add_primary__test_field_int_e9cebf24_uniq"
-        UNIQUE USING INDEX "idempotency_add_primary__test_field_int_e9cebf24_uniq";
-    """)
     _create_unique_index_sql = one_line_sql("""
         CREATE UNIQUE INDEX CONCURRENTLY "idempotency_add_primary_k_test_field_int_e9cebf24_pk"
         ON "idempotency_add_primary_key_app_relatedtesttable" ("test_field_int");
@@ -1865,20 +1844,11 @@ def test_idempotency_add_primary_key():
         call_command("migrate", "idempotency_add_primary_key_app", "0001")
     with override_settings(ZERO_DOWNTIME_MIGRATIONS_IDEMPOTENT_SQL=False):
         migration_sql = call_command("sqlmigrate", "idempotency_add_primary_key_app", "0002")
-    if django.VERSION[:2] < (4, 1):
-        assert split_sql_queries(migration_sql) == [
-            _drop_column_sql,
-            _create_unique_index_sql_before_django41,
-            _create_unique_constraint_sql_before_django41,
-            _create_unique_index_sql,
-            _create_primary_key_sql,
-        ]
-    else:
-        assert split_sql_queries(migration_sql) == [
-            _drop_column_sql,
-            _create_unique_index_sql,
-            _create_primary_key_sql,
-        ]
+    assert split_sql_queries(migration_sql) == [
+        _drop_column_sql,
+        _create_unique_index_sql,
+        _create_primary_key_sql,
+    ]
 
     # migrate case 1
     with override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=False):
@@ -2022,10 +1992,6 @@ def test_idempotency_add_primary_key():
 
 
 @skip_for_default_django_backend
-@pytest.mark.skipif(
-    django.VERSION[:2] < (4, 1),
-    reason="django after 4.1 case",
-)
 @pytest.mark.django_db(transaction=True)
 @modify_settings(INSTALLED_APPS={"append": "tests.apps.idempotency_add_auto_field_app"})
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
