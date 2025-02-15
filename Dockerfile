@@ -14,6 +14,7 @@ RUN apt-get install -q -y --no-install-recommends \
     python3.10 python3.10-distutils \
     python3.11 python3.11-distutils \
     python3.12 \
+    python3.13 \
     python3-pip \
     libgdal34 \
     postgresql-client
