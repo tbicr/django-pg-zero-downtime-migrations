@@ -3,9 +3,12 @@
 ## 0.17
   - added support for Python 3.13
   - added support for Django 5.1
+  - added postgres 17 support
   - dropped support for Python 3.6 and 3.7
   - dropped support for Django 3.2, 4.0 and 4.1
   - dropped `migrate_isnotnull_check_constraints` command
+  - marked postgres 12 support as deprecated
+  - marked postgres 13 support as deprecated
 
 ## 0.16
   - changed `ADD COLUMN DEFAULT NULL` to safe operation for code default
