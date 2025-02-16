@@ -1,6 +1,8 @@
 # django-pg-zero-downtime-migrations changelog
 
 ## 0.17
+  - added support for Python 3.13
+  - added support for Django 5.1
   - dropped support for Python 3.6 and 3.7
   - dropped support for Django 3.2, 4.0 and 4.1
   - dropped `migrate_isnotnull_check_constraints` command
