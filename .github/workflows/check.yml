@@ -19,5 +19,9 @@ jobs:
     steps:
       - name: checkout code
         uses: actions/checkout@v2
+      - name: build and pull images
+        run: |
+          docker compose build
+          docker compose pull --quiet
       - name: run checks
         run: docker compose run --rm django-pg-zero-downtime-migrations-tests tox -f ${{ matrix.tox-filter }}
