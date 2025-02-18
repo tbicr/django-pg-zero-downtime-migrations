@@ -18,7 +18,7 @@ jobs:
           tags: django-pg-zero-downtime-migrations:latest
           outputs: type=docker,dest=${{ runner.temp }}/main-image.tar
 
-      - name: Upload artifact
+      - name: Upload image as artifact
         uses: actions/upload-artifact@v4
         with:
           name: main-image
@@ -43,7 +43,7 @@ jobs:
       - name: checkout code
         uses: actions/checkout@v2
 
-      - name: Download artifact
+      - name: Download built image
         uses: actions/download-artifact@v4
         with:
           name: main-image
@@ -55,7 +55,7 @@ jobs:
           docker image ls -a
 
       - name: Pull DB images
-        run: docker compose pull --quiet
+        run: docker compose pull --quiet --policy missing
 
       - name: run checks
         run: docker compose run --rm django-pg-zero-downtime-migrations-tests tox -f ${{ matrix.tox-filter }}
