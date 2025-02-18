@@ -65,11 +65,7 @@ services:
 
   django-pg-zero-downtime-migrations-tests:
     image: ghcr.io/browniebroke/django-pg-zero-downtime-migrations:latest
-    build:
-      context: .
-      dockerfile: Dockerfile
-      cache_from:
-        - ghcr.io/browniebroke/django-pg-zero-downtime-migrations:latest
+    build: .
     depends_on:
       - pg17
       - pg16
