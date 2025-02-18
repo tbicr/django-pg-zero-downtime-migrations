@@ -9,20 +9,22 @@ jobs:
       - name: checkout code
         uses: actions/checkout@v2
 
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
-          tags: django-pg-zero-downtime-migrations:latest
-          outputs: type=docker,dest=${{ runner.temp }}/main-image.tar
-
-      - name: Upload image as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: main-image
-          path: ${{ runner.temp }}/main-image.tar
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/django-pg-zero-downtime-migrations:latest
 
   check:
     needs:
@@ -42,20 +44,7 @@ jobs:
     steps:
       - name: checkout code
         uses: actions/checkout@v2
-
-      - name: Download built image
-        uses: actions/download-artifact@v4
-        with:
-          name: main-image
-          path: ${{ runner.temp }}
-
-      - name: Load image
-        run: |
-          docker load --input ${{ runner.temp }}/main-image.tar
-          docker image ls -a
-
-      - name: Pull DB images
-        run: docker compose pull --quiet --policy missing
-
+      - name: pull images
+        run: docker compose pull --quiet
       - name: run checks
         run: docker compose run --rm django-pg-zero-downtime-migrations-tests tox -f ${{ matrix.tox-filter }}
