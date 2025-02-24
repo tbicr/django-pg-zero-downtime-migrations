@@ -1,5 +1,8 @@
 # django-pg-zero-downtime-migrations Changelog
 
+## 0.18
+- split CI into smaller jobs
+
 ## 0.17
 - added django 5.1 support
 - added python 3.13 support
