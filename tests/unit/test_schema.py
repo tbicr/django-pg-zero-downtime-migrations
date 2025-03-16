@@ -1957,29 +1957,38 @@ def test_add_meta_unique_constraint_nulls_not_distinct_expression__ok():
 
 @pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
-def test_add_meta_unique_constraint_deferrable__ok():
+def test_add_meta_unique_constraint_deferrable_deferred__ok():
     with cmp_schema_editor() as editor:
         editor.add_constraint(
             Model,
             models.UniqueConstraint(fields=('field1',), name='field1_uniq', deferrable=models.Deferrable.DEFERRED),
-        )
-        editor.add_constraint(
-            Model,
-            models.UniqueConstraint(fields=('field2',), name='field2_uniq', deferrable=models.Deferrable.IMMEDIATE),
         )
     assert editor.collected_sql == [
         'CREATE UNIQUE INDEX CONCURRENTLY "field1_uniq" ON "tests_model" ("field1");',
     ] + timeouts(
         'ALTER TABLE "tests_model" ADD CONSTRAINT "field1_uniq" '
         'UNIQUE USING INDEX "field1_uniq" DEFERRABLE INITIALLY DEFERRED;',
-    ) + [
+    )
+    assert editor.django_sql == [
+        'ALTER TABLE "tests_model" ADD CONSTRAINT "field1_uniq" UNIQUE ("field1") DEFERRABLE INITIALLY DEFERRED;',
+    ]
+
+
+@pytest.mark.django_db
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_add_meta_unique_constraint_deferrable_immediate__ok():
+    with cmp_schema_editor() as editor:
+        editor.add_constraint(
+            Model,
+            models.UniqueConstraint(fields=('field2',), name='field2_uniq', deferrable=models.Deferrable.IMMEDIATE),
+        )
+    assert editor.collected_sql == [
         'CREATE UNIQUE INDEX CONCURRENTLY "field2_uniq" ON "tests_model" ("field2");',
     ] + timeouts(
         'ALTER TABLE "tests_model" ADD CONSTRAINT "field2_uniq" '
         'UNIQUE USING INDEX "field2_uniq" DEFERRABLE INITIALLY IMMEDIATE;',
     )
     assert editor.django_sql == [
-        'ALTER TABLE "tests_model" ADD CONSTRAINT "field1_uniq" UNIQUE ("field1") DEFERRABLE INITIALLY DEFERRED;',
         'ALTER TABLE "tests_model" ADD CONSTRAINT "field2_uniq" UNIQUE ("field2") DEFERRABLE INITIALLY IMMEDIATE;',
     ]
 
