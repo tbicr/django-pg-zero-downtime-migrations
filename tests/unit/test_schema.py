@@ -1995,6 +1995,54 @@ def test_add_meta_unique_constraint_deferrable_immediate__ok():
 
 @pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_add_meta_unique_constraint_include__ok():
+    with cmp_schema_editor() as editor:
+        editor.add_constraint(
+            Model,
+            models.UniqueConstraint(fields=('field1',), name='field1_uniq', include=['field2']),
+        )
+    assert editor.collected_sql == [
+        'CREATE UNIQUE INDEX CONCURRENTLY "field1_uniq" ON "tests_model" ("field1") INCLUDE ("field2");',
+    ]
+    assert editor.django_sql == [
+        'CREATE UNIQUE INDEX "field1_uniq" ON "tests_model" ("field1") INCLUDE ("field2");'
+    ]
+
+
+@pytest.mark.django_db
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_add_meta_unique_constraint_opclasses__ok():
+    with cmp_schema_editor() as editor:
+        editor.add_constraint(
+            Model,
+            models.UniqueConstraint(fields=('field1',), name='field1_uniq', opclasses=['int4_ops']),
+        )
+    assert editor.collected_sql == [
+        'CREATE UNIQUE INDEX CONCURRENTLY "field1_uniq" ON "tests_model" ("field1" int4_ops);',
+    ]
+    assert editor.django_sql == [
+        'CREATE UNIQUE INDEX "field1_uniq" ON "tests_model" ("field1" int4_ops);',
+    ]
+
+
+@pytest.mark.django_db
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_add_meta_unique_constraint_condition__ok():
+    with cmp_schema_editor() as editor:
+        editor.add_constraint(
+            Model,
+            models.UniqueConstraint(fields=('field1',), name='field1_uniq', condition=models.Q(field1__lt=1)),
+        )
+    assert editor.collected_sql == [
+        'CREATE UNIQUE INDEX CONCURRENTLY "field1_uniq" ON "tests_model" ("field1") WHERE "field1" < 1;',
+    ]
+    assert editor.django_sql == [
+        'CREATE UNIQUE INDEX "field1_uniq" ON "tests_model" ("field1") WHERE "field1" < 1;',
+    ]
+
+
+@pytest.mark.django_db
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_drop_meta_unique_constraint__ok():
     with cmp_schema_editor() as editor:
         editor.remove_constraint(Model, models.UniqueConstraint(fields=('field1',), name='field1_uniq'))
