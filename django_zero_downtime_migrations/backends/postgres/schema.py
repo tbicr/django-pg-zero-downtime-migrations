@@ -321,7 +321,7 @@ class DatabaseSchemaEditorMixin:
                 disable_statement_timeout=True,
             ),
             PGAccessExclusive(
-                "ALTER TABLE %(table)s ADD CONSTRAINT %(name)s UNIQUE USING INDEX %(name)s",
+                "ALTER TABLE %(table)s ADD CONSTRAINT %(name)s UNIQUE USING INDEX %(name)s%(deferrable)s",
                 idempotent_condition=Condition(_sql_constraint_exists, False),
             ),
         )
@@ -338,7 +338,7 @@ class DatabaseSchemaEditorMixin:
                 disable_statement_timeout=True,
             ),
             PGAccessExclusive(
-                "ALTER TABLE %(table)s ADD CONSTRAINT %(name)s UNIQUE USING INDEX %(name)s",
+                "ALTER TABLE %(table)s ADD CONSTRAINT %(name)s UNIQUE USING INDEX %(name)s%(deferrable)s",
                 idempotent_condition=Condition(_sql_constraint_exists, False),
             ),
         )
