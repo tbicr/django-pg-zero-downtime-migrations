@@ -1957,6 +1957,92 @@ def test_add_meta_unique_constraint_nulls_not_distinct_expression__ok():
 
 @pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_add_meta_unique_constraint_deferrable_deferred__ok():
+    with cmp_schema_editor() as editor:
+        editor.add_constraint(
+            Model,
+            models.UniqueConstraint(fields=('field1',), name='field1_uniq', deferrable=models.Deferrable.DEFERRED),
+        )
+    assert editor.collected_sql == [
+        'CREATE UNIQUE INDEX CONCURRENTLY "field1_uniq" ON "tests_model" ("field1");',
+    ] + timeouts(
+        'ALTER TABLE "tests_model" ADD CONSTRAINT "field1_uniq" '
+        'UNIQUE USING INDEX "field1_uniq" DEFERRABLE INITIALLY DEFERRED;',
+    )
+    assert editor.django_sql == [
+        'ALTER TABLE "tests_model" ADD CONSTRAINT "field1_uniq" UNIQUE ("field1") DEFERRABLE INITIALLY DEFERRED;',
+    ]
+
+
+@pytest.mark.django_db
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_add_meta_unique_constraint_deferrable_immediate__ok():
+    with cmp_schema_editor() as editor:
+        editor.add_constraint(
+            Model,
+            models.UniqueConstraint(fields=('field2',), name='field2_uniq', deferrable=models.Deferrable.IMMEDIATE),
+        )
+    assert editor.collected_sql == [
+        'CREATE UNIQUE INDEX CONCURRENTLY "field2_uniq" ON "tests_model" ("field2");',
+    ] + timeouts(
+        'ALTER TABLE "tests_model" ADD CONSTRAINT "field2_uniq" '
+        'UNIQUE USING INDEX "field2_uniq" DEFERRABLE INITIALLY IMMEDIATE;',
+    )
+    assert editor.django_sql == [
+        'ALTER TABLE "tests_model" ADD CONSTRAINT "field2_uniq" UNIQUE ("field2") DEFERRABLE INITIALLY IMMEDIATE;',
+    ]
+
+
+@pytest.mark.django_db
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_add_meta_unique_constraint_include__ok():
+    with cmp_schema_editor() as editor:
+        editor.add_constraint(
+            Model,
+            models.UniqueConstraint(fields=('field1',), name='field1_uniq', include=['field2']),
+        )
+    assert editor.collected_sql == [
+        'CREATE UNIQUE INDEX CONCURRENTLY "field1_uniq" ON "tests_model" ("field1") INCLUDE ("field2");',
+    ]
+    assert editor.django_sql == [
+        'CREATE UNIQUE INDEX "field1_uniq" ON "tests_model" ("field1") INCLUDE ("field2");'
+    ]
+
+
+@pytest.mark.django_db
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_add_meta_unique_constraint_opclasses__ok():
+    with cmp_schema_editor() as editor:
+        editor.add_constraint(
+            Model,
+            models.UniqueConstraint(fields=('field1',), name='field1_uniq', opclasses=['int4_ops']),
+        )
+    assert editor.collected_sql == [
+        'CREATE UNIQUE INDEX CONCURRENTLY "field1_uniq" ON "tests_model" ("field1" int4_ops);',
+    ]
+    assert editor.django_sql == [
+        'CREATE UNIQUE INDEX "field1_uniq" ON "tests_model" ("field1" int4_ops);',
+    ]
+
+
+@pytest.mark.django_db
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_add_meta_unique_constraint_condition__ok():
+    with cmp_schema_editor() as editor:
+        editor.add_constraint(
+            Model,
+            models.UniqueConstraint(fields=('field1',), name='field1_uniq', condition=models.Q(field1__lt=1)),
+        )
+    assert editor.collected_sql == [
+        'CREATE UNIQUE INDEX CONCURRENTLY "field1_uniq" ON "tests_model" ("field1") WHERE "field1" < 1;',
+    ]
+    assert editor.django_sql == [
+        'CREATE UNIQUE INDEX "field1_uniq" ON "tests_model" ("field1") WHERE "field1" < 1;',
+    ]
+
+
+@pytest.mark.django_db
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_drop_meta_unique_constraint__ok():
     with cmp_schema_editor() as editor:
         editor.remove_constraint(Model, models.UniqueConstraint(fields=('field1',), name='field1_uniq'))
