@@ -1954,6 +1954,7 @@ def test_add_meta_unique_constraint_nulls_not_distinct_expression__ok():
         'CREATE UNIQUE INDEX "field1_uniq" ON "tests_model" ("field1") NULLS NOT DISTINCT;',
     ]
 
+
 @pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_add_meta_unique_constraint_deferrable__ok():
