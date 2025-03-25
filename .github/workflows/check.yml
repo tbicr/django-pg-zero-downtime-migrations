@@ -27,8 +27,18 @@ jobs:
           path: ${{ runner.temp }}/myimage.tar
 
   check:
-    name: run checks
     needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        tox-filter:
+          - "py3.8"
+          - "py3.9"
+          - "py3.10"
+          - "py3.11"
+          - "py3.12"
+          - "py3.13"
+    name: run checks ${{ matrix.tox-filter }}
     runs-on: ubuntu-latest
     steps:
       - name: checkout code
@@ -52,4 +62,4 @@ jobs:
         run: docker compose pull --quiet --ignore-buildable
 
       - name: run checks
-        run: docker compose run --rm django-pg-zero-downtime-migrations-tests tox
+        run: docker compose run --rm django-pg-zero-downtime-migrations-tests tox -f ${{ matrix.tox-filter }}
