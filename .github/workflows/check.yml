@@ -49,7 +49,7 @@ jobs:
           docker image ls -a
 
       - name: pull DB images
-        run: docker compose pull --quiet
+        run: docker compose pull --quiet --ignore-buildable
 
       - name: run checks
         run: docker compose run --rm django-pg-zero-downtime-migrations-tests tox
