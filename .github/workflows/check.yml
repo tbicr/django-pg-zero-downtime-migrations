@@ -48,9 +48,8 @@ jobs:
           docker load --input ${{ runner.temp }}/myimage.tar
           docker image ls -a
 
-      - name: build
-        run: docker compose build
-      - name: pull
+      - name: pull DB images
         run: docker compose pull --quiet
+
       - name: run checks
         run: docker compose run --rm django-pg-zero-downtime-migrations-tests tox
