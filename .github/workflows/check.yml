@@ -16,15 +16,15 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           tags: django-pg-zero-downtime-migrations:latest
-          outputs: type=docker,dest=${{ runner.temp }}/myimage.tar
+          outputs: type=docker,dest=${{ runner.temp }}/django-pg-zero-downtime-migrations-image.tar
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: myimage
-          path: ${{ runner.temp }}/myimage.tar
+          name: django-pg-zero-downtime-migrations-image
+          path: ${{ runner.temp }}/django-pg-zero-downtime-migrations-image.tar
 
   check:
     needs: build
@@ -50,12 +50,12 @@ jobs:
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
-          name: myimage
+          name: django-pg-zero-downtime-migrations-image
           path: ${{ runner.temp }}
 
       - name: Load Docker image
         run: |
-          docker load --input ${{ runner.temp }}/myimage.tar
+          docker load --input ${{ runner.temp }}/django-pg-zero-downtime-migrations-image.tar
           docker image ls -a
 
       - name: pull DB images
