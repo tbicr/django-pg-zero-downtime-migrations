@@ -1,5 +1,8 @@
 # django-pg-zero-downtime-migrations Changelog
 
+## 0.19 (Unreleased)
+- parallelize CI to run one job per Python version
+
 ## 0.18
 - fixed unique constraint creation with the `deferrable` parameter
 - split CI into smaller jobs
