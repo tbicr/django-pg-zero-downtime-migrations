@@ -1433,6 +1433,25 @@ def test_alter_field_add_constraint_primary_key__ok(mocker):
     ]
 
 
+@pytest.mark.skipif(django.VERSION < (5, 2), reason='Composite PK were added in Django 5.2')
+@pytest.mark.django_db
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_add_composite_primary_key_field__ok(mocker):
+    with cmp_schema_editor() as editor:
+        field_a = models.IntegerField(unique=True)
+        field_a.set_attributes_from_name('field')
+        field_a.model = Model
+        field_b = models.IntegerField(unique=True)
+        field_b.set_attributes_from_name('field')
+        field_b.model = Model
+        composite_pk = models.CompositePrimaryKey("product_id", "order_id")
+        composite_pk.set_attributes_from_name('field')
+        composite_pk.model = Model
+        editor.add_field(Model, composite_pk)
+    assert editor.collected_sql == []
+    assert editor.django_sql == []
+
+
 @pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
                    ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
