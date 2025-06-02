@@ -819,6 +819,8 @@ class DatabaseSchemaEditorMixin(PostgresDatabaseSchemaEditor):
             if self.KEEP_DEFAULT:
                 return field.default is not NOT_PROVIDED
             return False
+        if django.VERSION >= (5, 2):
+            return field.has_db_default()
         return field.db_default is not NOT_PROVIDED
 
     def _add_column_not_null(self, model, field):
@@ -852,7 +854,7 @@ class DatabaseSchemaEditorMixin(PostgresDatabaseSchemaEditor):
         # Work out nullability.
         null = field.null
         # Add database default.
-        if django.VERSION >= (5, 0) and field.db_default is not NOT_PROVIDED:
+        if django.VERSION >= (5, 2) and field.has_db_default() or django.VERSION >= (5, 0) and field.db_default is not NOT_PROVIDED:
             default_sql, default_params = self.db_default_sql(field)
             yield f"DEFAULT {default_sql}"
             params.extend(default_params)
