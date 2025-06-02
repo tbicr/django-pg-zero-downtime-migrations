@@ -854,7 +854,10 @@ class DatabaseSchemaEditorMixin(PostgresDatabaseSchemaEditor):
         # Work out nullability.
         null = field.null
         # Add database default.
-        if django.VERSION >= (5, 2) and field.has_db_default() or django.VERSION >= (5, 0) and field.db_default is not NOT_PROVIDED:
+        if (
+            django.VERSION >= (5, 2) and field.has_db_default()
+            or django.VERSION >= (5, 0) and field.db_default is not NOT_PROVIDED
+        ):
             default_sql, default_params = self.db_default_sql(field)
             yield f"DEFAULT {default_sql}"
             params.extend(default_params)
