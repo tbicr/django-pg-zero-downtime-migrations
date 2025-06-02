@@ -205,7 +205,7 @@ class PGShareUpdateExclusive(PGLock):
         )
 
 
-class DatabaseSchemaEditorMixin:
+class DatabaseSchemaEditorMixin(PostgresDatabaseSchemaEditor):
     ZERO_TIMEOUT = '0ms'
 
     _sql_get_lock_timeout = "SELECT setting || unit FROM pg_settings WHERE name = 'lock_timeout'"
@@ -845,8 +845,8 @@ class DatabaseSchemaEditorMixin:
         self, column_db_type, params, model, field, field_db_params, include_default
     ):
         yield column_db_type
-        if field_db_params.get("collation"):
-            yield self._collate_sql(field_db_params.get("collation"))
+        if collation := field_db_params.get("collation"):
+            yield self._collate_sql(collation)
         if self.connection.features.supports_comments_inline and field.db_comment:
             yield self._comment_sql(field.db_comment)
         # Work out nullability.
