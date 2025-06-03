@@ -205,7 +205,7 @@ class PGShareUpdateExclusive(PGLock):
         )
 
 
-class DatabaseSchemaEditorMixin(PostgresDatabaseSchemaEditor):
+class DatabaseSchemaEditorMixin:
     ZERO_TIMEOUT = '0ms'
 
     _sql_get_lock_timeout = "SELECT setting || unit FROM pg_settings WHERE name = 'lock_timeout'"
