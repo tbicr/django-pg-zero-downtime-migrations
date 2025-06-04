@@ -819,6 +819,8 @@ class DatabaseSchemaEditorMixin:
             if self.KEEP_DEFAULT:
                 return field.default is not NOT_PROVIDED
             return False
+        if django.VERSION >= (5, 2):
+            return field.has_db_default()
         return field.db_default is not NOT_PROVIDED
 
     def _add_column_not_null(self, model, field):
@@ -845,14 +847,17 @@ class DatabaseSchemaEditorMixin:
         self, column_db_type, params, model, field, field_db_params, include_default
     ):
         yield column_db_type
-        if field_db_params.get("collation"):
-            yield self._collate_sql(field_db_params.get("collation"))
+        if collation := field_db_params.get("collation"):
+            yield self._collate_sql(collation)
         if self.connection.features.supports_comments_inline and field.db_comment:
             yield self._comment_sql(field.db_comment)
         # Work out nullability.
         null = field.null
         # Add database default.
-        if django.VERSION >= (5, 0) and field.db_default is not NOT_PROVIDED:
+        if (
+            django.VERSION >= (5, 2) and field.has_db_default()
+            or django.VERSION >= (5, 0) and field.db_default is not NOT_PROVIDED
+        ):
             default_sql, default_params = self.db_default_sql(field)
             yield f"DEFAULT {default_sql}"
             params.extend(default_params)

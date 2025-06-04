@@ -2,6 +2,7 @@
 
 ## 0.19 (Unreleased)
 - parallelize CI to run one job per Python version
+- added support for Django 5.2
 
 ## 0.18
 - fixed unique constraint creation with the `deferrable` parameter

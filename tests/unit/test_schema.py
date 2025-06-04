@@ -1433,6 +1433,27 @@ def test_alter_field_add_constraint_primary_key__ok(mocker):
     ]
 
 
+@pytest.mark.skipif(django.VERSION < (5, 2), reason='Composite PK were added in Django 5.2')
+@pytest.mark.django_db
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_add_composite_primary_key_field__ok(mocker):
+    with cmp_schema_editor() as editor:
+        field_a = models.IntegerField(unique=True)
+        field_a.set_attributes_from_name('field')
+        field_a.model = Model
+        field_b = models.IntegerField(unique=True)
+        field_b.set_attributes_from_name('field')
+        field_b.model = Model
+        composite_pk = models.CompositePrimaryKey("product_id", "order_id")
+        composite_pk.set_attributes_from_name('field')
+        composite_pk.model = Model
+        editor.add_field(Model, composite_pk)
+    # Django does not support migrating to a composite primary key:
+    # https://docs.djangoproject.com/en/5.2/topics/composite-primary-key/#migrating-to-a-composite-primary-key
+    assert editor.collected_sql == []
+    assert editor.django_sql == []
+
+
 @pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
                    ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
@@ -1454,6 +1475,28 @@ def test_alter_field_add_constraint_primary_key__with_flexible_timeout__ok(mocke
     assert editor.django_sql == [
         'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_0a53d95f_pk" PRIMARY KEY ("field");',
     ]
+
+
+@pytest.mark.skipif(django.VERSION < (5, 2), reason='Composite PK were added in Django 5.2')
+@pytest.mark.django_db
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
+                   ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
+def test_add_composite_primary_key_field__with_flexible_timeout__ok(mocker):
+    with cmp_schema_editor() as editor:
+        field_a = models.IntegerField(unique=True)
+        field_a.set_attributes_from_name('field')
+        field_a.model = Model
+        field_b = models.IntegerField(unique=True)
+        field_b.set_attributes_from_name('field')
+        field_b.model = Model
+        composite_pk = models.CompositePrimaryKey("product_id", "order_id")
+        composite_pk.set_attributes_from_name('field')
+        composite_pk.model = Model
+        editor.add_field(Model, composite_pk)
+    # Django does not support migrating to a composite primary key:
+    # https://docs.djangoproject.com/en/5.2/topics/composite-primary-key/#migrating-to-a-composite-primary-key
+    assert editor.collected_sql == []
+    assert editor.django_sql == []
 
 
 @pytest.mark.django_db
@@ -1486,6 +1529,27 @@ def test_alter_field_drop_constraint_primary_key__ok(mocker):
         'ALTER TABLE "tests_model" DROP CONSTRAINT "tests_model_field_0a53d95f_pk";',
         'DROP INDEX IF EXISTS "tests_model_field_0a53d95f_like";',
     ]
+
+
+@pytest.mark.skipif(django.VERSION < (5, 2), reason='Composite PK were added in Django 5.2')
+@pytest.mark.django_db
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_alter_field_drop_composite_primary_key_field__ok(mocker):
+    with cmp_schema_editor() as editor:
+        field_a = models.IntegerField(unique=True)
+        field_a.set_attributes_from_name('field')
+        field_a.model = Model
+        field_b = models.IntegerField(unique=True)
+        field_b.set_attributes_from_name('field')
+        field_b.model = Model
+        composite_pk = models.CompositePrimaryKey("product_id", "order_id")
+        composite_pk.set_attributes_from_name('field')
+        composite_pk.model = Model
+        editor.remove_field(Model, composite_pk)
+    # Django does not support migrating from a composite primary key:
+    # https://docs.djangoproject.com/en/5.2/topics/composite-primary-key/#migrating-to-a-composite-primary-key
+    assert editor.collected_sql == []
+    assert editor.django_sql == []
 
 
 @pytest.mark.django_db
