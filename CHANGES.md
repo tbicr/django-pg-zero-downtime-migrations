@@ -1,8 +1,8 @@
 # django-pg-zero-downtime-migrations Changelog
 
-## 0.19 (Unreleased)
+## 0.19
+- added django 5.2 support
 - parallelize CI to run one job per Python version
-- added support for Django 5.2
 
 ## 0.18
 - fixed unique constraint creation with the `deferrable` parameter
