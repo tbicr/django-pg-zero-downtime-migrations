@@ -23,7 +23,7 @@ def pg_dump(table: str) -> str:
     user = settings.DB_SUPER_USER
     password = settings.DB_SUPER_PASSWORD
     env = os.environ.copy() | {"PGPASSWORD": password}
-    cmd = f"pg_dump -h {host} -p {port} -U {user} -d {name} -s -t {table}"
+    cmd = f"pg_dump -h {host} -p {port} -U {user} -d {name} -s -t {table} --restrict-key=test"
     popen = subprocess.run(cmd, env=env, text=True, shell=True, capture_output=True, check=True)
     return popen.stdout
 
