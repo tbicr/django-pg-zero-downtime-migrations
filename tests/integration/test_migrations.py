@@ -9,13 +9,15 @@ from django.test import modify_settings, override_settings
 
 import pytest
 
-from django_zero_downtime_migrations.backends.postgres.schema import (
-    UnsafeOperationException
-)
+from django_zero_downtime_migrations.backends.postgres.schema import UnsafeOperationException
 from tests import skip_for_default_django_backend
 from tests.integration import (
-    is_valid_constraint, is_valid_index, make_index_invalid, one_line_sql,
-    pg_dump, split_sql_queries
+    is_valid_constraint,
+    is_valid_index,
+    make_index_invalid,
+    one_line_sql,
+    pg_dump,
+    split_sql_queries,
 )
 
 

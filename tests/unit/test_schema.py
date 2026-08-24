@@ -3,21 +3,15 @@ from functools import partial
 import django
 from django.conf import settings
 from django.contrib.postgres.constraints import ExclusionConstraint
-from django.contrib.postgres.indexes import (
-    BrinIndex, BTreeIndex, GinIndex, GistIndex, HashIndex, SpGistIndex
-)
+from django.contrib.postgres.indexes import BrinIndex, BTreeIndex, GinIndex, GistIndex, HashIndex, SpGistIndex
 from django.db import connection, models
-from django.db.backends.postgresql.schema import (
-    DatabaseSchemaEditor as CoreDatabaseSchemaEditor
-)
+from django.db.backends.postgresql.schema import DatabaseSchemaEditor as CoreDatabaseSchemaEditor
 from django.test import override_settings
 from django.utils.module_loading import import_string
 
 import pytest
 
-from django_zero_downtime_migrations.backends.postgres.schema import (
-    UnsafeOperationException, UnsafeOperationWarning
-)
+from django_zero_downtime_migrations.backends.postgres.schema import UnsafeOperationException, UnsafeOperationWarning
 
 DatabaseSchemaEditor = import_string(settings.DATABASES['default']['ENGINE'] + '.schema.DatabaseSchemaEditor')
 
