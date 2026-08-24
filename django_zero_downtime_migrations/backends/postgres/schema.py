@@ -659,15 +659,34 @@ class DatabaseSchemaEditorMixin:
                 self.execute(sql)
             self.deferred_sql.clear()
 
+    def _collected_table_renames(self):
+        """`sqlmigrate` prints a table rename and does not execute it, so django 6.1+ maps the new
+        table name to the name that the table still has in the database, see django ticket #33185
+        """
+        if self.collect_sql and django.VERSION[:2] >= (6, 1):
+            return self.collected_table_renames
+        return {}
+
     def _get_constraints(self, cursor, model):
-        cursor.execute(self._sql_get_table_constraints_introspection, [model._meta.db_table, model._meta.db_table])
+        renames = self._collected_table_renames()
+        after_rename = {before: after for after, before in renames.items()}
+        table = renames.get(model._meta.db_table, model._meta.db_table)
+        cursor.execute(self._sql_get_table_constraints_introspection, [table, table])
         for constraint, kind, table, table_ref, columns, columns_ref in cursor.fetchall():
-            yield constraint, kind, table, table_ref, columns, columns_ref
+            # introspection reports the current names, but the collected sql runs after the rename
+            renamed_table = after_rename.get(table, table)
+            renamed_table_ref = after_rename.get(table_ref, table_ref)
+            yield constraint, kind, renamed_table, renamed_table_ref, columns, columns_ref
 
     def _get_indexes(self, cursor, model):
-        cursor.execute(self._sql_get_index_introspection, [model._meta.db_table])
+        renames = self._collected_table_renames()
+        after_rename = {before: after for after, before in renames.items()}
+        table = renames.get(model._meta.db_table, model._meta.db_table)
+        cursor.execute(self._sql_get_index_introspection, [table])
         for index, table, columns in cursor.fetchall():
-            yield index, table, columns
+            # introspection reports the current names, but the collected sql runs after the rename
+            renamed_table = after_rename.get(table, table)
+            yield index, renamed_table, columns
 
     def _drop_collect_sql_introspection_related_duplicates(self, drop_constraint_queries):
         """
