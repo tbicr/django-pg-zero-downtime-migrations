@@ -5,6 +5,7 @@
 - added django 6.0 support
 - added django 6.1 support
 - added postgres 18 support
+- updated the documentation with the django 6.0 `DROP COLUMN` limit for `ZERO_DOWNTIME_MIGRATIONS_EXPLICIT_CONSTRAINTS_DROP=False`, that cannot drop a referenced column
 - marked python 3.8 support as deprecated
 - marked python 3.9 support as deprecated
 - marked python 3.10 support as deprecated

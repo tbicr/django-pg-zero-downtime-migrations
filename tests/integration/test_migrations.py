@@ -197,7 +197,9 @@ def test_good_flow_drop_table_with_constraints():
 @modify_settings(INSTALLED_APPS={"append": "tests.apps.good_flow_drop_column_with_constraints"})
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_good_flow_drop_column_with_constraints():
-    with override_settings(ZERO_DOWNTIME_MIGRATIONS_EXPLICIT_CONSTRAINTS_DROP=False):
+    # django 6.0 removed CASCADE from DROP COLUMN, so a referenced column needs the explicit constraints drop
+    explicit_constraints_drop = django.VERSION[:2] >= (6, 0)
+    with override_settings(ZERO_DOWNTIME_MIGRATIONS_EXPLICIT_CONSTRAINTS_DROP=explicit_constraints_drop):
         call_command("migrate", "good_flow_drop_column_with_constraints")
     drop_col_test_table_parent_schema = pg_dump("drop_col_test_table_parent")
     drop_col_test_table_main_schema = pg_dump("drop_col_test_table_main")
@@ -207,101 +209,185 @@ def test_good_flow_drop_column_with_constraints():
     call_command("migrate", "good_flow_drop_column_with_constraints", "0002")
 
     migration_sql = call_command("sqlmigrate", "good_flow_drop_column_with_constraints", "0003")
-    assert split_sql_queries(migration_sql) == [
-        'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_i7";',
-        'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_i7" CASCADE;',
-    ]
+    if django.VERSION[:2] >= (6, 0):
+        assert split_sql_queries(migration_sql) == [
+            'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_i7";',
+            'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_i7";',
+        ]
+    else:
+        assert split_sql_queries(migration_sql) == [
+            'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_i7";',
+            'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_i7" CASCADE;',
+        ]
     call_command("migrate", "good_flow_drop_column_with_constraints", "0003")
 
     migration_sql = call_command("sqlmigrate", "good_flow_drop_column_with_constraints", "0004")
-    assert split_sql_queries(migration_sql) == [
-        'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_i6";',
-        'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_i6" CASCADE;',
-    ]
+    if django.VERSION[:2] >= (6, 0):
+        assert split_sql_queries(migration_sql) == [
+            'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_i6";',
+            'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_i6";',
+        ]
+    else:
+        assert split_sql_queries(migration_sql) == [
+            'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_i6";',
+            'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_i6" CASCADE;',
+        ]
     call_command("migrate", "good_flow_drop_column_with_constraints", "0004")
 
     migration_sql = call_command("sqlmigrate", "good_flow_drop_column_with_constraints", "0005")
-    assert split_sql_queries(migration_sql) == [
-        'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_i5";',
-        'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_i5" CASCADE;',
-    ]
+    if django.VERSION[:2] >= (6, 0):
+        assert split_sql_queries(migration_sql) == [
+            'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_i5";',
+            'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_i5";',
+        ]
+    else:
+        assert split_sql_queries(migration_sql) == [
+            'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_i5";',
+            'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_i5" CASCADE;',
+        ]
     call_command("migrate", "good_flow_drop_column_with_constraints", "0005")
 
     migration_sql = call_command("sqlmigrate", "good_flow_drop_column_with_constraints", "0006")
-    assert split_sql_queries(migration_sql) == [
-        'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_i4";',
-        'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_i4" CASCADE;',
-    ]
+    if django.VERSION[:2] >= (6, 0):
+        assert split_sql_queries(migration_sql) == [
+            'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_i4";',
+            'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_i4";',
+        ]
+    else:
+        assert split_sql_queries(migration_sql) == [
+            'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_i4";',
+            'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_i4" CASCADE;',
+        ]
     call_command("migrate", "good_flow_drop_column_with_constraints", "0006")
 
     migration_sql = call_command("sqlmigrate", "good_flow_drop_column_with_constraints", "0007")
-    assert split_sql_queries(migration_sql) == [
-        'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_i3";',
-        'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_i3" CASCADE;',
-    ]
+    if django.VERSION[:2] >= (6, 0):
+        assert split_sql_queries(migration_sql) == [
+            'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_i3";',
+            'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_i3";',
+        ]
+    else:
+        assert split_sql_queries(migration_sql) == [
+            'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_i3";',
+            'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_i3" CASCADE;',
+        ]
     call_command("migrate", "good_flow_drop_column_with_constraints", "0007")
 
     migration_sql = call_command("sqlmigrate", "good_flow_drop_column_with_constraints", "0008")
-    assert split_sql_queries(migration_sql) == [
-        'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_i2";',
-        'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_i2" CASCADE;',
-    ]
+    if django.VERSION[:2] >= (6, 0):
+        assert split_sql_queries(migration_sql) == [
+            'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_i2";',
+            'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_i2";',
+        ]
+    else:
+        assert split_sql_queries(migration_sql) == [
+            'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_i2";',
+            'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_i2" CASCADE;',
+        ]
     call_command("migrate", "good_flow_drop_column_with_constraints", "0008")
 
     migration_sql = call_command("sqlmigrate", "good_flow_drop_column_with_constraints", "0009")
-    assert split_sql_queries(migration_sql) == [
-        'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_i1";',
-        'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_i1" CASCADE;',
-    ]
+    if django.VERSION[:2] >= (6, 0):
+        assert split_sql_queries(migration_sql) == [
+            'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_i1";',
+            'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_i1";',
+        ]
+    else:
+        assert split_sql_queries(migration_sql) == [
+            'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_i1";',
+            'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_i1" CASCADE;',
+        ]
     call_command("migrate", "good_flow_drop_column_with_constraints", "0009")
 
     migration_sql = call_command("sqlmigrate", "good_flow_drop_column_with_constraints", "0010")
-    assert split_sql_queries(migration_sql) == [
-        'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_u7";',
-        'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_u7" CASCADE;',
-    ]
+    if django.VERSION[:2] >= (6, 0):
+        assert split_sql_queries(migration_sql) == [
+            'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_u7";',
+            'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_u7";',
+        ]
+    else:
+        assert split_sql_queries(migration_sql) == [
+            'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_u7";',
+            'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_u7" CASCADE;',
+        ]
     call_command("migrate", "good_flow_drop_column_with_constraints", "0010")
 
     migration_sql = call_command("sqlmigrate", "good_flow_drop_column_with_constraints", "0011")
-    assert split_sql_queries(migration_sql) == [
-        'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_u6";',
-        'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_u6" CASCADE;',
-    ]
+    if django.VERSION[:2] >= (6, 0):
+        assert split_sql_queries(migration_sql) == [
+            'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_u6";',
+            'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_u6";',
+        ]
+    else:
+        assert split_sql_queries(migration_sql) == [
+            'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_u6";',
+            'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_u6" CASCADE;',
+        ]
     call_command("migrate", "good_flow_drop_column_with_constraints", "0011")
 
     migration_sql = call_command("sqlmigrate", "good_flow_drop_column_with_constraints", "0012")
-    assert split_sql_queries(migration_sql) == [
-        'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_u5";',
-        'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_u5" CASCADE;',
-    ]
+    if django.VERSION[:2] >= (6, 0):
+        assert split_sql_queries(migration_sql) == [
+            'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_u5";',
+            'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_u5";',
+        ]
+    else:
+        assert split_sql_queries(migration_sql) == [
+            'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_u5";',
+            'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_u5" CASCADE;',
+        ]
     call_command("migrate", "good_flow_drop_column_with_constraints", "0012")
 
     migration_sql = call_command("sqlmigrate", "good_flow_drop_column_with_constraints", "0013")
-    assert split_sql_queries(migration_sql) == [
-        'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_u4";',
-        'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_u4" CASCADE;',
-    ]
+    if django.VERSION[:2] >= (6, 0):
+        assert split_sql_queries(migration_sql) == [
+            'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_u4";',
+            'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_u4";',
+        ]
+    else:
+        assert split_sql_queries(migration_sql) == [
+            'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_u4";',
+            'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_u4" CASCADE;',
+        ]
     call_command("migrate", "good_flow_drop_column_with_constraints", "0013")
 
     migration_sql = call_command("sqlmigrate", "good_flow_drop_column_with_constraints", "0014")
-    assert split_sql_queries(migration_sql) == [
-        'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_u3";',
-        'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_u3" CASCADE;',
-    ]
+    if django.VERSION[:2] >= (6, 0):
+        assert split_sql_queries(migration_sql) == [
+            'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_u3";',
+            'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_u3";',
+        ]
+    else:
+        assert split_sql_queries(migration_sql) == [
+            'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_u3";',
+            'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_u3" CASCADE;',
+        ]
     call_command("migrate", "good_flow_drop_column_with_constraints", "0014")
 
     migration_sql = call_command("sqlmigrate", "good_flow_drop_column_with_constraints", "0015")
-    assert split_sql_queries(migration_sql) == [
-        'ALTER TABLE "drop_col_test_table_main" DROP CONSTRAINT "drop_col_u2";',
-        'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_u2" CASCADE;',
-    ]
+    if django.VERSION[:2] >= (6, 0):
+        assert split_sql_queries(migration_sql) == [
+            'ALTER TABLE "drop_col_test_table_main" DROP CONSTRAINT "drop_col_u2";',
+            'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_u2";',
+        ]
+    else:
+        assert split_sql_queries(migration_sql) == [
+            'ALTER TABLE "drop_col_test_table_main" DROP CONSTRAINT "drop_col_u2";',
+            'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_u2" CASCADE;',
+        ]
     call_command("migrate", "good_flow_drop_column_with_constraints", "0015")
 
     migration_sql = call_command("sqlmigrate", "good_flow_drop_column_with_constraints", "0016")
-    assert split_sql_queries(migration_sql) == [
-        'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_u1";',
-        'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_u1" CASCADE;',
-    ]
+    if django.VERSION[:2] >= (6, 0):
+        assert split_sql_queries(migration_sql) == [
+            'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_u1";',
+            'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_u1";',
+        ]
+    else:
+        assert split_sql_queries(migration_sql) == [
+            'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_u1";',
+            'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_u1" CASCADE;',
+        ]
     call_command("migrate", "good_flow_drop_column_with_constraints", "0016")
 
     _drop_main_id_child_foreign_key_constraint_sql = one_line_sql("""
@@ -313,9 +399,14 @@ def test_good_flow_drop_column_with_constraints():
         ALTER TABLE "drop_col_test_table_main"
         DROP CONSTRAINT "drop_col_test_table_main_main_id_key";
     """)
-    _drop_main_id_column_sql = one_line_sql("""
-        ALTER TABLE "drop_col_test_table_main" DROP COLUMN "main_id" CASCADE;
-    """)
+    if django.VERSION[:2] >= (6, 0):
+        _drop_main_id_column_sql = one_line_sql("""
+            ALTER TABLE "drop_col_test_table_main" DROP COLUMN "main_id";
+        """)
+    else:
+        _drop_main_id_column_sql = one_line_sql("""
+            ALTER TABLE "drop_col_test_table_main" DROP COLUMN "main_id" CASCADE;
+        """)
     migration_sql = call_command("sqlmigrate", "good_flow_drop_column_with_constraints", "0017")
     assert split_sql_queries(migration_sql) == [
         _drop_main_id_child_foreign_key_constraint_sql,
@@ -333,9 +424,14 @@ def test_good_flow_drop_column_with_constraints():
          ALTER TABLE "drop_col_test_table_main"
          DROP CONSTRAINT "drop_col_test_table_main_parent_id_55b0b5e6_uniq";
      """)
-    _drop_parent_id_column_sql = one_line_sql("""
-         ALTER TABLE "drop_col_test_table_main" DROP COLUMN "parent_id" CASCADE;
-     """)
+    if django.VERSION[:2] >= (6, 0):
+        _drop_parent_id_column_sql = one_line_sql("""
+             ALTER TABLE "drop_col_test_table_main" DROP COLUMN "parent_id";
+         """)
+    else:
+        _drop_parent_id_column_sql = one_line_sql("""
+             ALTER TABLE "drop_col_test_table_main" DROP COLUMN "parent_id" CASCADE;
+         """)
     migration_sql = call_command("sqlmigrate", "good_flow_drop_column_with_constraints", "0018")
     assert split_sql_queries(migration_sql) == [
         _drop_parent_id_main_foreign_key_constraint_sql,
@@ -369,73 +465,133 @@ def test_good_flow_drop_column_with_constraints_old():
     call_command("migrate", "good_flow_drop_column_with_constraints_old", "0002")
 
     migration_sql = call_command("sqlmigrate", "good_flow_drop_column_with_constraints_old", "0003")
-    assert split_sql_queries(migration_sql) == [
-        'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_i7";',
-        'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_i7" CASCADE;',
-    ]
+    if django.VERSION[:2] >= (6, 0):
+        assert split_sql_queries(migration_sql) == [
+            'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_i7";',
+            'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_i7";',
+        ]
+    else:
+        assert split_sql_queries(migration_sql) == [
+            'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_i7";',
+            'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_i7" CASCADE;',
+        ]
     call_command("migrate", "good_flow_drop_column_with_constraints_old", "0003")
 
     migration_sql = call_command("sqlmigrate", "good_flow_drop_column_with_constraints_old", "0004")
-    assert split_sql_queries(migration_sql) == [
-        'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_i6";',
-        'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_i6" CASCADE;',
-    ]
+    if django.VERSION[:2] >= (6, 0):
+        assert split_sql_queries(migration_sql) == [
+            'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_i6";',
+            'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_i6";',
+        ]
+    else:
+        assert split_sql_queries(migration_sql) == [
+            'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_i6";',
+            'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_i6" CASCADE;',
+        ]
     call_command("migrate", "good_flow_drop_column_with_constraints_old", "0004")
 
     migration_sql = call_command("sqlmigrate", "good_flow_drop_column_with_constraints_old", "0005")
-    assert split_sql_queries(migration_sql) == [
-        'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_i5";',
-        'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_i5" CASCADE;',
-    ]
+    if django.VERSION[:2] >= (6, 0):
+        assert split_sql_queries(migration_sql) == [
+            'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_i5";',
+            'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_i5";',
+        ]
+    else:
+        assert split_sql_queries(migration_sql) == [
+            'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_i5";',
+            'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_i5" CASCADE;',
+        ]
     call_command("migrate", "good_flow_drop_column_with_constraints_old", "0005")
 
     migration_sql = call_command("sqlmigrate", "good_flow_drop_column_with_constraints_old", "0006")
-    assert split_sql_queries(migration_sql) == [
-        'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_i4";',
-        'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_i4" CASCADE;',
-    ]
+    if django.VERSION[:2] >= (6, 0):
+        assert split_sql_queries(migration_sql) == [
+            'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_i4";',
+            'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_i4";',
+        ]
+    else:
+        assert split_sql_queries(migration_sql) == [
+            'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_i4";',
+            'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_i4" CASCADE;',
+        ]
     call_command("migrate", "good_flow_drop_column_with_constraints_old", "0006")
 
     migration_sql = call_command("sqlmigrate", "good_flow_drop_column_with_constraints_old", "0007")
-    assert split_sql_queries(migration_sql) == [
-        'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_i3";',
-        'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_i3" CASCADE;',
-    ]
+    if django.VERSION[:2] >= (6, 0):
+        assert split_sql_queries(migration_sql) == [
+            'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_i3";',
+            'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_i3";',
+        ]
+    else:
+        assert split_sql_queries(migration_sql) == [
+            'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_i3";',
+            'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_i3" CASCADE;',
+        ]
     call_command("migrate", "good_flow_drop_column_with_constraints_old", "0007")
 
     migration_sql = call_command("sqlmigrate", "good_flow_drop_column_with_constraints_old", "0008")
-    assert split_sql_queries(migration_sql) == [
-        'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_i2";',
-        'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_i2" CASCADE;',
-    ]
+    if django.VERSION[:2] >= (6, 0):
+        assert split_sql_queries(migration_sql) == [
+            'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_i2";',
+            'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_i2";',
+        ]
+    else:
+        assert split_sql_queries(migration_sql) == [
+            'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_i2";',
+            'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_i2" CASCADE;',
+        ]
     call_command("migrate", "good_flow_drop_column_with_constraints_old", "0008")
 
     migration_sql = call_command("sqlmigrate", "good_flow_drop_column_with_constraints_old", "0009")
-    assert split_sql_queries(migration_sql) == [
-        'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_i1";',
-        'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_i1" CASCADE;',
-    ]
+    if django.VERSION[:2] >= (6, 0):
+        assert split_sql_queries(migration_sql) == [
+            'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_i1";',
+            'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_i1";',
+        ]
+    else:
+        assert split_sql_queries(migration_sql) == [
+            'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_i1";',
+            'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_i1" CASCADE;',
+        ]
     call_command("migrate", "good_flow_drop_column_with_constraints_old", "0009")
 
     migration_sql = call_command("sqlmigrate", "good_flow_drop_column_with_constraints_old", "0010")
-    assert split_sql_queries(migration_sql) == [
-        'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_u7";',
-        'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_u7" CASCADE;',
-    ]
+    if django.VERSION[:2] >= (6, 0):
+        assert split_sql_queries(migration_sql) == [
+            'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_u7";',
+            'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_u7";',
+        ]
+    else:
+        assert split_sql_queries(migration_sql) == [
+            'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_u7";',
+            'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_u7" CASCADE;',
+        ]
     call_command("migrate", "good_flow_drop_column_with_constraints_old", "0010")
 
     migration_sql = call_command("sqlmigrate", "good_flow_drop_column_with_constraints_old", "0011")
-    assert split_sql_queries(migration_sql) == [
-        'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_u5";',
-        'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_u5" CASCADE;',
-    ]
+    if django.VERSION[:2] >= (6, 0):
+        assert split_sql_queries(migration_sql) == [
+            'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_u5";',
+            'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_u5";',
+        ]
+    else:
+        assert split_sql_queries(migration_sql) == [
+            'DROP INDEX CONCURRENTLY IF EXISTS "drop_col_u5";',
+            'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_u5" CASCADE;',
+        ]
     call_command("migrate", "good_flow_drop_column_with_constraints_old", "0011")
 
     migration_sql = call_command("sqlmigrate", "good_flow_drop_column_with_constraints_old", "0012")
-    assert split_sql_queries(migration_sql) == [
-        'ALTER TABLE "drop_col_test_table_main" DROP CONSTRAINT "drop_col_u2";',
-        'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_u2" CASCADE;',
-    ]
+    if django.VERSION[:2] >= (6, 0):
+        assert split_sql_queries(migration_sql) == [
+            'ALTER TABLE "drop_col_test_table_main" DROP CONSTRAINT "drop_col_u2";',
+            'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_u2";',
+        ]
+    else:
+        assert split_sql_queries(migration_sql) == [
+            'ALTER TABLE "drop_col_test_table_main" DROP CONSTRAINT "drop_col_u2";',
+            'ALTER TABLE "drop_col_test_table_main" DROP COLUMN "field_u2" CASCADE;',
+        ]
     call_command("migrate", "good_flow_drop_column_with_constraints_old", "0012")
 
     _drop_main_id_child_foreign_key_constraint_sql = one_line_sql("""
@@ -447,9 +603,14 @@ def test_good_flow_drop_column_with_constraints_old():
         ALTER TABLE "drop_col_test_table_main"
         DROP CONSTRAINT "drop_col_test_table_main_main_id_key";
     """)
-    _drop_main_id_column_sql = one_line_sql("""
-        ALTER TABLE "drop_col_test_table_main" DROP COLUMN "main_id" CASCADE;
-    """)
+    if django.VERSION[:2] >= (6, 0):
+        _drop_main_id_column_sql = one_line_sql("""
+            ALTER TABLE "drop_col_test_table_main" DROP COLUMN "main_id";
+        """)
+    else:
+        _drop_main_id_column_sql = one_line_sql("""
+            ALTER TABLE "drop_col_test_table_main" DROP COLUMN "main_id" CASCADE;
+        """)
     migration_sql = call_command("sqlmigrate", "good_flow_drop_column_with_constraints_old", "0013")
     assert split_sql_queries(migration_sql) == [
         _drop_main_id_child_foreign_key_constraint_sql,
@@ -467,9 +628,14 @@ def test_good_flow_drop_column_with_constraints_old():
          ALTER TABLE "drop_col_test_table_main"
          DROP CONSTRAINT "drop_col_test_table_main_parent_id_55b0b5e6_uniq";
      """)
-    _drop_parent_id_column_sql = one_line_sql("""
-         ALTER TABLE "drop_col_test_table_main" DROP COLUMN "parent_id" CASCADE;
-     """)
+    if django.VERSION[:2] >= (6, 0):
+        _drop_parent_id_column_sql = one_line_sql("""
+             ALTER TABLE "drop_col_test_table_main" DROP COLUMN "parent_id";
+         """)
+    else:
+        _drop_parent_id_column_sql = one_line_sql("""
+             ALTER TABLE "drop_col_test_table_main" DROP COLUMN "parent_id" CASCADE;
+         """)
     migration_sql = call_command("sqlmigrate", "good_flow_drop_column_with_constraints_old", "0014")
     assert split_sql_queries(migration_sql) == [
         _drop_parent_id_main_foreign_key_constraint_sql,
@@ -669,10 +835,16 @@ def test_idempotency_add_column():
         ADD COLUMN "test_field_str" varchar(10) NULL;
     """)
 
-    _drop_column_sql = one_line_sql("""
-        ALTER TABLE "idempotency_add_column_app_relatedtesttable"
-        DROP COLUMN "test_field_str" CASCADE;
-    """)
+    if django.VERSION[:2] >= (6, 0):
+        _drop_column_sql = one_line_sql("""
+            ALTER TABLE "idempotency_add_column_app_relatedtesttable"
+            DROP COLUMN "test_field_str";
+        """)
+    else:
+        _drop_column_sql = one_line_sql("""
+            ALTER TABLE "idempotency_add_column_app_relatedtesttable"
+            DROP COLUMN "test_field_str" CASCADE;
+        """)
 
     # get target schema
     call_command("migrate", "idempotency_add_column_app", "0001")
@@ -745,10 +917,16 @@ def test_idempotency_add_column_foreign_key():
         ALTER TABLE "idempotency_add_column_foreign_key_app_relatedtesttable"
         DROP CONSTRAINT "idempotency_add_colu_test_model_id_99eba75b_fk_idempoten";
     """)
-    _drop_column_sql = one_line_sql("""
-        ALTER TABLE "idempotency_add_column_foreign_key_app_relatedtesttable"
-        DROP COLUMN "test_model_id" CASCADE;
-    """)
+    if django.VERSION[:2] >= (6, 0):
+        _drop_column_sql = one_line_sql("""
+            ALTER TABLE "idempotency_add_column_foreign_key_app_relatedtesttable"
+            DROP COLUMN "test_model_id";
+        """)
+    else:
+        _drop_column_sql = one_line_sql("""
+            ALTER TABLE "idempotency_add_column_foreign_key_app_relatedtesttable"
+            DROP COLUMN "test_model_id" CASCADE;
+        """)
 
     # get target schema
     call_command("migrate", "idempotency_add_column_foreign_key_app", "0001")
@@ -893,10 +1071,16 @@ def test_idempotency_add_column_one_to_one():
         ALTER TABLE "idempotency_add_column_one_to_one_app_relatedtesttable"
         DROP CONSTRAINT "idempotency_add_colu_test_model_id_3c5a49fe_fk_idempoten";
     """)
-    _drop_column_sql = one_line_sql("""
-        ALTER TABLE "idempotency_add_column_one_to_one_app_relatedtesttable"
-        DROP COLUMN "test_model_id" CASCADE;
-    """)
+    if django.VERSION[:2] >= (6, 0):
+        _drop_column_sql = one_line_sql("""
+            ALTER TABLE "idempotency_add_column_one_to_one_app_relatedtesttable"
+            DROP COLUMN "test_model_id";
+        """)
+    else:
+        _drop_column_sql = one_line_sql("""
+            ALTER TABLE "idempotency_add_column_one_to_one_app_relatedtesttable"
+            DROP COLUMN "test_model_id" CASCADE;
+        """)
 
     # get target schema
     call_command("migrate", "idempotency_add_column_one_to_one_app", "0001")
@@ -1791,10 +1975,16 @@ def test_idempotency_add_unique_meta():
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_IDEMPOTENT_SQL=True)
 def test_idempotency_add_primary_key():
-    _drop_column_sql = one_line_sql("""
-        ALTER TABLE "idempotency_add_primary_key_app_relatedtesttable"
-        DROP COLUMN "id" CASCADE;
-    """)
+    if django.VERSION[:2] >= (6, 0):
+        _drop_column_sql = one_line_sql("""
+            ALTER TABLE "idempotency_add_primary_key_app_relatedtesttable"
+            DROP COLUMN "id";
+        """)
+    else:
+        _drop_column_sql = one_line_sql("""
+            ALTER TABLE "idempotency_add_primary_key_app_relatedtesttable"
+            DROP COLUMN "id" CASCADE;
+        """)
     _create_unique_index_sql = one_line_sql("""
         CREATE UNIQUE INDEX CONCURRENTLY "idempotency_add_primary_k_test_field_int_e9cebf24_pk"
         ON "idempotency_add_primary_key_app_relatedtesttable" ("test_field_int");

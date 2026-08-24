@@ -136,6 +136,8 @@ Allowed values:
 
 Explicitly dropping constraints and indexes before dropping tables or columns allows for splitting schema-only changes with an `ACCESS EXCLUSIVE` lock and the deletion of physical files, which can take significant time and cause downtime.
 
+> _NOTE:_ django 6.0 removed the `CASCADE` keyword from the `DROP COLUMN` statement. In django 6.0+ the `False` value cannot drop a column that a different table refers to. The default `True` value drops the related constraints first and does not have this limit.
+
 #### ZERO_DOWNTIME_MIGRATIONS_KEEP_DEFAULT
 
 Define way keep or drop code defaults on database level when adding new column, default `False`:
