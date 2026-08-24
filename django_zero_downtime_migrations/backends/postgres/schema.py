@@ -16,6 +16,11 @@ class Unsafe:
         "See details for safe alternative "
         "https://github.com/tbicr/django-pg-zero-downtime-migrations#create-column-not-null"
     )
+    ADD_COLUMN_GENERATED_STORED = (
+        "ADD COLUMN GENERATED STORED is unsafe operation\n"
+        "See details for safe alternative "
+        "https://github.com/tbicr/django-pg-zero-downtime-migrations#create-column-generated"
+    )
     ALTER_COLUMN_TYPE = (
         "ALTER COLUMN TYPE is unsafe operation\n"
         "See details for safe alternative "
@@ -737,6 +742,11 @@ class DatabaseSchemaEditorMixin:
         self._flush_deferred_sql()
 
     def add_field(self, model, field):
+        if django.VERSION >= (5, 0) and field.generated and field.db_persist:
+            if self.RAISE_FOR_UNSAFE:
+                raise UnsafeOperationException(Unsafe.ADD_COLUMN_GENERATED_STORED)
+            else:
+                warnings.warn(UnsafeOperationWarning(Unsafe.ADD_COLUMN_GENERATED_STORED))
         super().add_field(model, field)
         self._flush_deferred_sql()
 

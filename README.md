@@ -370,6 +370,31 @@ INSERT INTO tbl (old_col, new_col) VALUES (1, 1);  -- new code inserts work fine
 `db_default` is most robust way to apply default and it's works fine with `NOT NULL` constraints too.
 In django<5.0 you can use `ZERO_DOWNTIME_MIGRATIONS_KEEP_DEFAULT=True` to emulate `db_default` behaviour for `default` field.
 
+##### Create column generated stored
+
+Migrations: `ALTER TABLE ADD COLUMN GENERATED ALWAYS AS (...) STORED`.
+
+A stored generated column keeps a value for every row. Thus postgres computes the value for all existing rows and rewrites the table with an `ACCESS EXCLUSIVE` lock.
+
+Postgres computes the value of a virtual generated column on read. This column changes only the table metadata, thus it is safe to add.
+`GeneratedField(db_persist=False)` makes a virtual generated column. This column needs postgres 18 or later and django 6.1 or later.
+
+```sql
+-- unsafe, rewrites the table
+ALTER TABLE tbl ADD COLUMN new_col integer GENERATED ALWAYS AS (old_col * 2) STORED;
+
+-- safe, changes the table metadata only
+ALTER TABLE tbl ADD COLUMN new_col integer GENERATED ALWAYS AS (old_col * 2) VIRTUAL;
+```
+
+There are three methods for a stored generated column:
+
+1. use a virtual generated column, with postgres 18 or later and django 6.1 or later
+2. create a new table, copy the existing data, drop the old table
+3. downtime
+
+A generated column in a `CREATE TABLE` statement is safe. A new table has no rows to compute.
+
 #### Dealing with `NOT NULL` column constraint
 
 Postgres checks that all column values `NOT NULL` (full table scan) when you are applying `ALTER TABLE ALTER COLUMN SET NOT NULL`, this check skipped if appropriate valid `CHECK CONSTRAINT` exists for postgres 12+. So to make existing column `NOT NULL` safe way you can follow next steps:
