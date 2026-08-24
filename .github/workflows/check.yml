@@ -29,31 +29,44 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
-        django: ["4.2", "5.0", "5.1", "5.2"]
+        python: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+        django: ["4.2", "5.0", "5.1", "5.2", "6.0", "6.1"]
         psycopg: ["2", "3"]
         exclude:
-          # django 5.x needs python 3.10 or later
+          # django 5.x and 6.x need python 3.10 or later
           - { python: "3.8", django: "5.0" }
           - { python: "3.8", django: "5.1" }
           - { python: "3.8", django: "5.2" }
+          - { python: "3.8", django: "6.0" }
+          - { python: "3.8", django: "6.1" }
           - { python: "3.9", django: "5.0" }
           - { python: "3.9", django: "5.1" }
           - { python: "3.9", django: "5.2" }
+          - { python: "3.9", django: "6.0" }
+          - { python: "3.9", django: "6.1" }
+          # django 6.x needs python 3.12 or later
+          - { python: "3.10", django: "6.0" }
+          - { python: "3.10", django: "6.1" }
+          - { python: "3.11", django: "6.0" }
+          - { python: "3.11", django: "6.1" }
           # django 4.2 and 5.0 have no python 3.13 support
           - { python: "3.13", django: "4.2" }
           - { python: "3.13", django: "5.0" }
+          # django 4.2, 5.0 and 5.1 have no python 3.14 support
+          - { python: "3.14", django: "4.2" }
+          - { python: "3.14", django: "5.0" }
+          - { python: "3.14", django: "5.1" }
         include:
           - { psycopg: "2", psycopg_package: "psycopg2-binary" }
           - { psycopg: "3", psycopg_package: "psycopg[binary]" }
     services:
       postgres:
-        image: postgres:17-alpine
+        image: postgres:18-alpine
         env: { POSTGRES_USER: root, POSTGRES_PASSWORD: root }
         ports: ["5432:5432"]
         options: --health-cmd pg_isready --health-interval 5s --health-retries 20
       postgis:
-        image: postgis/postgis:17-3.5-alpine
+        image: postgis/postgis:18-3.6-alpine
         env: { POSTGRES_USER: root, POSTGRES_PASSWORD: root }
         ports: ["5433:5432"]
         options: --health-cmd pg_isready --health-interval 5s --health-retries 20
@@ -104,108 +117,117 @@ jobs:
       matrix:
         include:
           # current versions
-          - name: pg17 django backend
-            python: "3.13"
-            django: "5.2"
+          - name: pg18 django backend
+            python: "3.14"
+            django: "6.1"
             psycopg_package: "psycopg[binary]"
-            image: postgres:17-alpine
+            image: postgres:18-alpine
             db_engine: django.db.backends.postgresql
             db_user: test
             db_super_user: test
-          - name: pg17
-            python: "3.13"
-            django: "5.2"
+          - name: pg18
+            python: "3.14"
+            django: "6.1"
             psycopg_package: "psycopg[binary]"
-            image: postgres:17-alpine
+            image: postgres:18-alpine
             db_engine: django_zero_downtime_migrations.backends.postgres
             db_user: test
             db_super_user: root
-          - name: postgis17
-            python: "3.13"
-            django: "5.2"
+          - name: postgis18
+            python: "3.14"
+            django: "6.1"
             psycopg_package: "psycopg[binary]"
-            image: postgis/postgis:17-3.5-alpine
+            image: postgis/postgis:18-3.6-alpine
             db_engine: django_zero_downtime_migrations.backends.postgis
             db_user: root
             db_super_user: root
 
           # old psycopg version support
-          - name: pg17 psycopg2
-            python: "3.13"
-            django: "5.2"
+          - name: pg18 psycopg2
+            python: "3.14"
+            django: "6.1"
             psycopg_package: psycopg2-binary
-            image: postgres:17-alpine
+            image: postgres:18-alpine
             db_engine: django_zero_downtime_migrations.backends.postgres
             db_user: test
             db_super_user: root
 
           # old postgres version support
+          - name: pg17
+            python: "3.14"
+            django: "6.1"
+            psycopg_package: "psycopg[binary]"
+            image: postgres:17-alpine
+            db_engine: django_zero_downtime_migrations.backends.postgres
+            db_user: test
+            db_super_user: root
           - name: pg16
-            python: "3.13"
-            django: "5.2"
+            python: "3.14"
+            django: "6.1"
             psycopg_package: "psycopg[binary]"
             image: postgres:16-alpine
             db_engine: django_zero_downtime_migrations.backends.postgres
             db_user: test
             db_super_user: root
           - name: pg15
-            python: "3.13"
-            django: "5.2"
+            python: "3.14"
+            django: "6.1"
             psycopg_package: "psycopg[binary]"
             image: postgres:15-alpine
             db_engine: django_zero_downtime_migrations.backends.postgres
             db_user: test
             db_super_user: root
           - name: pg14
-            python: "3.13"
+            python: "3.14"
             django: "5.2"
             psycopg_package: "psycopg[binary]"
             image: postgres:14-alpine
             db_engine: django_zero_downtime_migrations.backends.postgres
             db_user: test
             db_super_user: root
-          - name: pg13
-            python: "3.13"
-            django: "5.1"
+
+          # old django version support
+          - name: pg18 django6.0
+            python: "3.14"
+            django: "6.0"
             psycopg_package: "psycopg[binary]"
-            image: postgres:13-alpine
+            image: postgres:18-alpine
             db_engine: django_zero_downtime_migrations.backends.postgres
             db_user: test
             db_super_user: root
-          - name: pg12
+          - name: pg18 django5.2
+            python: "3.14"
+            django: "5.2"
+            psycopg_package: "psycopg[binary]"
+            image: postgres:18-alpine
+            db_engine: django_zero_downtime_migrations.backends.postgres
+            db_user: test
+            db_super_user: root
+          - name: pg18 django5.1
+            python: "3.13"
+            django: "5.1"
+            psycopg_package: "psycopg[binary]"
+            image: postgres:18-alpine
+            db_engine: django_zero_downtime_migrations.backends.postgres
+            db_user: test
+            db_super_user: root
+          - name: pg18 django5.0
             python: "3.12"
             django: "5.0"
             psycopg_package: "psycopg[binary]"
-            image: postgres:12-alpine
+            image: postgres:18-alpine
+            db_engine: django_zero_downtime_migrations.backends.postgres
+            db_user: test
+            db_super_user: root
+          - name: pg18 django4.2
+            python: "3.12"
+            django: "4.2"
+            psycopg_package: "psycopg[binary]"
+            image: postgres:18-alpine
             db_engine: django_zero_downtime_migrations.backends.postgres
             db_user: test
             db_super_user: root
 
-          # old django version support
-          - name: pg17 django5.1
-            python: "3.13"
-            django: "5.1"
-            psycopg_package: "psycopg[binary]"
-            image: postgres:17-alpine
-            db_engine: django_zero_downtime_migrations.backends.postgres
-            db_user: test
-            db_super_user: root
-          - name: pg17 django5.0
-            python: "3.12"
-            django: "5.0"
-            psycopg_package: "psycopg[binary]"
-            image: postgres:17-alpine
-            db_engine: django_zero_downtime_migrations.backends.postgres
-            db_user: test
-            db_super_user: root
-          - name: pg17 django4.2
-            python: "3.12"
-            django: "4.2"
-            psycopg_package: "psycopg[binary]"
-            image: postgres:17-alpine
-            db_engine: django_zero_downtime_migrations.backends.postgres
-            db_user: test
-            db_super_user: root
     services:
       postgres:
         image: ${{ matrix.image }}
