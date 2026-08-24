@@ -75,6 +75,9 @@ target/
 # pyenv
 .python-version
 
+# uv
+uv.lock
+
 # celery beat schedule file
 celerybeat-schedule
 
@@ -102,3 +105,10 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+
+# IDE
+.idea/
+.vscode/
+
+# ruff
+.ruff_cache/
