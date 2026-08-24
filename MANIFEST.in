@@ -1,7 +1,0 @@
-include README.md
-include CHANGES.md
-include AUTHORS
-include LICENSE
-
-global-exclude __pycache__
-global-exclude *.py[co]
