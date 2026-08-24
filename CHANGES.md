@@ -1,5 +1,8 @@
 # django-pg-zero-downtime-migrations Changelog
 
+## 0.20 (Unreleased)
+- moved package metadata to `pyproject.toml`
+
 ## 0.19
 - added django 5.2 support
 - parallelize CI to run one job per Python version

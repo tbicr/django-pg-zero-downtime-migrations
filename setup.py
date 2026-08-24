@@ -1,6 +1,17 @@
-from setuptools import find_packages, setup
+import re
 
-VERSION = __import__('django_zero_downtime_migrations').__version__
+from setuptools import setup
+
+
+def _read_version():
+    with open('django_zero_downtime_migrations/__init__.py') as init_handle:
+        match = re.search(r'^__version__\s*=\s*[\'"]([^\'"]+)', init_handle.read(), re.MULTILINE)
+    if not match:
+        raise RuntimeError('Could not find __version__ in django_zero_downtime_migrations/__init__.py')
+    return match.group(1)
+
+
+VERSION = _read_version()
 
 
 def _replace_internal_images_with_external(text):
@@ -20,37 +31,6 @@ def _get_long_description():
 
 
 setup(
-    name='django-pg-zero-downtime-migrations',
-    version=VERSION,
-    author='Paveł Tyślacki',
-    author_email='pavel.tyslacki@gmail.com',
-    license='MIT',
-    url='https://github.com/tbicr/django-pg-zero-downtime-migrations',
-    description='Django postgresql backend that apply migrations with respect to database locks',
     long_description=_get_long_description(),
     long_description_content_type='text/markdown',
-    classifiers=[
-        'Development Status :: 4 - Beta',
-        'Intended Audience :: Developers',
-        'License :: OSI Approved :: MIT License',
-        'Operating System :: OS Independent',
-        'Programming Language :: Python',
-        'Programming Language :: Python :: 3.8',
-        'Programming Language :: Python :: 3.9',
-        'Programming Language :: Python :: 3.10',
-        'Programming Language :: Python :: 3.11',
-        'Programming Language :: Python :: 3.12',
-        'Programming Language :: Python :: 3.13',
-        'Framework :: Django',
-        'Framework :: Django :: 4.2',
-        'Framework :: Django :: 5.0',
-        'Framework :: Django :: 5.1',
-        'Framework :: Django :: 5.2',
-    ],
-    keywords='django postgres postgresql migrations',
-    packages=find_packages(exclude=['manage*', 'tests*']),
-    python_requires='>=3.8',
-    install_requires=[
-        'django>=4.2',
-    ]
 )

@@ -1,0 +1,53 @@
+[build-system]
+requires = ["setuptools>=77.0.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "django-pg-zero-downtime-migrations"
+dynamic = ["version", "readme"]
+description = "Django postgresql backend that apply migrations with respect to database locks"
+authors = [{ name = "Paveł Tyślacki", email = "pavel.tyslacki@gmail.com" }]
+license = "MIT"
+license-files = ["LICENSE"]
+keywords = ["django", "postgres", "postgresql", "migrations"]
+requires-python = ">=3.8"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Framework :: Django",
+    "Framework :: Django :: 4.2",
+    "Framework :: Django :: 5.0",
+    "Framework :: Django :: 5.1",
+    "Framework :: Django :: 5.2",
+]
+dependencies = [
+    "django>=4.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "flake8",
+    "isort",
+    "pytest",
+    "pytest-django",
+    "pytest-mock",
+    "psycopg[binary]",
+]
+
+[project.urls]
+Homepage = "https://github.com/tbicr/django-pg-zero-downtime-migrations"
+
+[tool.setuptools.dynamic]
+version = { attr = "django_zero_downtime_migrations.__version__" }
+
+[tool.setuptools.packages.find]
+include = ["django_zero_downtime_migrations*"]
+namespaces = false
