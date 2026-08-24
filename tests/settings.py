@@ -96,6 +96,9 @@ DATABASES = {
 DB_SUPER_USER = os.getenv('DB_SUPER_USER', DATABASES['default']['USER'])
 DB_SUPER_PASSWORD = os.getenv('DB_SUPER_PASSWORD', os.getenv('DB_SUPER_USER', DATABASES['default']['PASSWORD']))
 
+# TODO: drop this setting after django 5.2 support removal, it repeats the django 6.0+ default
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
 # Password validation
 # https://docs.djangoproject.com/en/2.0/ref/settings/#auth-password-validators
 
