@@ -45,6 +45,11 @@ dev = [
 [project.urls]
 Homepage = "https://github.com/tbicr/django-pg-zero-downtime-migrations"
 
+[tool.pytest.ini_options]
+addopts = "--verbose"
+python_files = "tests/*/test*.py"
+DJANGO_SETTINGS_MODULE = "tests.settings"
+
 [tool.setuptools.dynamic]
 version = { attr = "django_zero_downtime_migrations.__version__" }
 
