@@ -1,3 +1,4 @@
+import django
 from django.db import models
 
 
@@ -10,9 +11,17 @@ class RelatedTestTable(models.Model):
     test_field_int = models.IntegerField(null=True)
 
     class Meta:
-        constraints = [
-            models.CheckConstraint(
-                check=models.Q(test_field_int__gt=0),
-                name="idempotency_add_check_app_relatedtesttable_check",
-            )
-        ]
+        if django.VERSION[:2] >= (5, 1):
+            constraints = [
+                models.CheckConstraint(
+                    condition=models.Q(test_field_int__gt=0),
+                    name="idempotency_add_check_app_relatedtesttable_check",
+                )
+            ]
+        else:
+            constraints = [
+                models.CheckConstraint(
+                    check=models.Q(test_field_int__gt=0),
+                    name="idempotency_add_check_app_relatedtesttable_check",
+                )
+            ]

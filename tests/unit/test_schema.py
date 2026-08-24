@@ -1875,7 +1875,12 @@ def test_remove_index_together__ok(mocker):
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_add_meta_check_constraint__ok():
     with cmp_schema_editor() as editor:
-        editor.add_constraint(Model, models.CheckConstraint(check=models.Q(field1__gt=0), name='field1_gt_0'))
+        if django.VERSION[:2] >= (5, 1):
+            editor.add_constraint(
+                Model, models.CheckConstraint(condition=models.Q(field1__gt=0), name='field1_gt_0'))
+        else:
+            editor.add_constraint(
+                Model, models.CheckConstraint(check=models.Q(field1__gt=0), name='field1_gt_0'))
     assert editor.collected_sql == timeouts(
         'ALTER TABLE "tests_model" ADD CONSTRAINT "field1_gt_0" '
         'CHECK ("field1" > 0) NOT VALID;',
@@ -1892,7 +1897,12 @@ def test_add_meta_check_constraint__ok():
                    ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
 def test_add_meta_check_constraint__with_flexible_timeout__ok():
     with cmp_schema_editor() as editor:
-        editor.add_constraint(Model, models.CheckConstraint(check=models.Q(field1__gt=0), name='field1_gt_0'))
+        if django.VERSION[:2] >= (5, 1):
+            editor.add_constraint(
+                Model, models.CheckConstraint(condition=models.Q(field1__gt=0), name='field1_gt_0'))
+        else:
+            editor.add_constraint(
+                Model, models.CheckConstraint(check=models.Q(field1__gt=0), name='field1_gt_0'))
     assert editor.collected_sql == timeouts(
         'ALTER TABLE "tests_model" ADD CONSTRAINT "field1_gt_0" '
         'CHECK ("field1" > 0) NOT VALID;',
@@ -1908,7 +1918,12 @@ def test_add_meta_check_constraint__with_flexible_timeout__ok():
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_drop_meta_check_constraint__ok():
     with cmp_schema_editor() as editor:
-        editor.remove_constraint(Model, models.CheckConstraint(check=models.Q(field1__gt=0), name='field1_gt_0'))
+        if django.VERSION[:2] >= (5, 1):
+            editor.remove_constraint(
+                Model, models.CheckConstraint(condition=models.Q(field1__gt=0), name='field1_gt_0'))
+        else:
+            editor.remove_constraint(
+                Model, models.CheckConstraint(check=models.Q(field1__gt=0), name='field1_gt_0'))
     assert editor.collected_sql == timeouts(
         'ALTER TABLE "tests_model" DROP CONSTRAINT "field1_gt_0";',
     )
