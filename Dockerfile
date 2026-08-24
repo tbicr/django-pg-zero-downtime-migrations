@@ -21,7 +21,7 @@ RUN apt-get update && \
     libgdal34 \
     postgresql-client-17 && \
     rm -rf /var/lib/apt/lists/* && \
-    pip3 install --break-system-packages setuptools tox
+    pip3 install --break-system-packages uv tox tox-uv
 
 ADD . /app
 WORKDIR /app
