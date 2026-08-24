@@ -8,15 +8,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: checkout code
-        uses: actions/checkout@v2
-      - name: set up python
-        uses: actions/setup-python@v2
-        with:
-          python-version: '3.x'
-      - name: install pypa/build
-        run: python -m pip install build --user
+        uses: actions/checkout@v4
+      - name: set up uv
+        uses: astral-sh/setup-uv@v5
       - name: build a binary wheel and a source tarball
-        run: python -m build --sdist --wheel --outdir dist/
+        run: uv build
+      - name: check distribution metadata
+        run: uvx twine check dist/*
       - name: publish distribution to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
