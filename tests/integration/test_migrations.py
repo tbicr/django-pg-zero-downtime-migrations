@@ -2123,13 +2123,23 @@ def test_idempotency_add_primary_key():
         """
         django creates different name for primary key constraint than postgres
         rolling back drop index can be reason of columns order changes
+        postgres 18 prints the not null constraint name in the column definition
         """
         return dump.replace(
             "idempotency_add_primary_key_app_relatedtesttable_id_d0e5667c_pk",
             "idempotency_add_primary_key_app_relatedtesttable_pkey",
         ).replace(
-            "test_field_int integer NOT NULL,\n    id integer NOT NULL",
-            "id integer NOT NULL,\n    test_field_int integer NOT NULL",
+            "test_field_int integer NOT NULL,\n"
+            "    id integer NOT NULL",
+            "id integer NOT NULL,\n"
+            "    test_field_int integer NOT NULL",
+        ).replace(
+            "test_field_int integer "
+            "CONSTRAINT idempotency_add_primary_key_app_related_test_field_int_not_null NOT NULL,\n"
+            "    id integer NOT NULL",
+            "id integer NOT NULL,\n"
+            "    test_field_int integer "
+            "CONSTRAINT idempotency_add_primary_key_app_related_test_field_int_not_null NOT NULL",
         )
 
     # rollback case 1
