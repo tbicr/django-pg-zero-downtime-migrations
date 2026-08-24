@@ -7,6 +7,7 @@
 - switched the `tox` environments to `uv`
 - switched release builds to `uv build` and updated the github actions
 - replaced `setuptools` with `hatchling` and generated the package description with `hatch-fancy-pypi-readme`
+- replaced `tox` and `docker compose` with a github actions test matrix
 
 ## 0.19
 - added django 5.2 support

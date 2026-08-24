@@ -2,64 +2,270 @@ name: Check
 
 on: [push, pull_request]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: build and push
-        uses: docker/build-push-action@v6
-        with:
-          tags: django-pg-zero-downtime-migrations:latest
-          outputs: type=docker,dest=${{ runner.temp }}/django-pg-zero-downtime-migrations-image.tar
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: django-pg-zero-downtime-migrations-image
-          path: ${{ runner.temp }}/django-pg-zero-downtime-migrations-image.tar
-
-  check:
-    needs: build
-    strategy:
-      fail-fast: false
-      matrix:
-        tox-filter:
-          - "py3.8"
-          - "py3.9"
-          - "py3.10"
-          - "py3.11"
-          - "py3.12"
-          - "py3.13"
-    name: run checks ${{ matrix.tox-filter }}
+  lint:
+    name: ruff
     runs-on: ubuntu-latest
     steps:
       - name: checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: set up uv
+        uses: astral-sh/setup-uv@v5
 
-      - name: Download artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: django-pg-zero-downtime-migrations-image
-          path: ${{ runner.temp }}
+      - name: run ruff
+        run: uvx ruff check .
 
-      - name: Load Docker image
+  unit:
+    name: unit py${{ matrix.python }} django${{ matrix.django }} psycopg${{ matrix.psycopg }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+        django: ["4.2", "5.0", "5.1", "5.2"]
+        psycopg: ["2", "3"]
+        exclude:
+          # django 5.x needs python 3.10 or later
+          - { python: "3.8", django: "5.0" }
+          - { python: "3.8", django: "5.1" }
+          - { python: "3.8", django: "5.2" }
+          - { python: "3.9", django: "5.0" }
+          - { python: "3.9", django: "5.1" }
+          - { python: "3.9", django: "5.2" }
+          # django 4.2 and 5.0 have no python 3.13 support
+          - { python: "3.13", django: "4.2" }
+          - { python: "3.13", django: "5.0" }
+        include:
+          - { psycopg: "2", psycopg_package: "psycopg2-binary" }
+          - { psycopg: "3", psycopg_package: "psycopg[binary]" }
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env: { POSTGRES_USER: root, POSTGRES_PASSWORD: root }
+        ports: ["5432:5432"]
+        options: --health-cmd pg_isready --health-interval 5s --health-retries 20
+      postgis:
+        image: postgis/postgis:17-3.5-alpine
+        env: { POSTGRES_USER: root, POSTGRES_PASSWORD: root }
+        ports: ["5433:5432"]
+        options: --health-cmd pg_isready --health-interval 5s --health-retries 20
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v4
+
+      - name: set up uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: install geodjango libraries
         run: |
-          docker load --input ${{ runner.temp }}/django-pg-zero-downtime-migrations-image.tar
-          docker image ls -a
+          sudo apt-get update
+          sudo apt-get install -q -y --no-install-recommends gdal-bin
 
-      - name: pull DB images
-        run: docker compose pull --quiet --ignore-buildable
+      - name: create the test user
+        run: |
+          docker exec ${{ job.services.postgres.id }} \
+            psql -U root -d postgres -c "CREATE USER test WITH PASSWORD 'test' CREATEDB"
 
-      - name: run checks
-        run: docker compose run --rm django-pg-zero-downtime-migrations-tests tox -f ${{ matrix.tox-filter }}
+      - name: install dependencies
+        run: |
+          uv venv --python ${{ matrix.python }}
+          uv pip install -e . pytest pytest-django pytest-mock \
+            "django==${{ matrix.django }}.*" "${{ matrix.psycopg_package }}"
+
+      - name: run unit tests with the postgres backend
+        env:
+          DB_HOST: localhost
+          DB_PORT: "5432"
+          DB_USER: test
+          DB_ENGINE: django_zero_downtime_migrations.backends.postgres
+        run: .venv/bin/pytest tests/unit
+
+      - name: run unit tests with the postgis backend
+        env:
+          DB_HOST: localhost
+          DB_PORT: "5433"
+          DB_USER: root
+          DB_ENGINE: django_zero_downtime_migrations.backends.postgis
+        run: .venv/bin/pytest tests/unit
+
+  integration:
+    name: integration ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # current versions
+          - name: pg17 django backend
+            python: "3.13"
+            django: "5.2"
+            psycopg_package: "psycopg[binary]"
+            image: postgres:17-alpine
+            db_engine: django.db.backends.postgresql
+            db_user: test
+            db_super_user: test
+          - name: pg17
+            python: "3.13"
+            django: "5.2"
+            psycopg_package: "psycopg[binary]"
+            image: postgres:17-alpine
+            db_engine: django_zero_downtime_migrations.backends.postgres
+            db_user: test
+            db_super_user: root
+          - name: postgis17
+            python: "3.13"
+            django: "5.2"
+            psycopg_package: "psycopg[binary]"
+            image: postgis/postgis:17-3.5-alpine
+            db_engine: django_zero_downtime_migrations.backends.postgis
+            db_user: root
+            db_super_user: root
+
+          # old psycopg version support
+          - name: pg17 psycopg2
+            python: "3.13"
+            django: "5.2"
+            psycopg_package: psycopg2-binary
+            image: postgres:17-alpine
+            db_engine: django_zero_downtime_migrations.backends.postgres
+            db_user: test
+            db_super_user: root
+
+          # old postgres version support
+          - name: pg16
+            python: "3.13"
+            django: "5.2"
+            psycopg_package: "psycopg[binary]"
+            image: postgres:16-alpine
+            db_engine: django_zero_downtime_migrations.backends.postgres
+            db_user: test
+            db_super_user: root
+          - name: pg15
+            python: "3.13"
+            django: "5.2"
+            psycopg_package: "psycopg[binary]"
+            image: postgres:15-alpine
+            db_engine: django_zero_downtime_migrations.backends.postgres
+            db_user: test
+            db_super_user: root
+          - name: pg14
+            python: "3.13"
+            django: "5.2"
+            psycopg_package: "psycopg[binary]"
+            image: postgres:14-alpine
+            db_engine: django_zero_downtime_migrations.backends.postgres
+            db_user: test
+            db_super_user: root
+          - name: pg13
+            python: "3.13"
+            django: "5.1"
+            psycopg_package: "psycopg[binary]"
+            image: postgres:13-alpine
+            db_engine: django_zero_downtime_migrations.backends.postgres
+            db_user: test
+            db_super_user: root
+          - name: pg12
+            python: "3.12"
+            django: "5.0"
+            psycopg_package: "psycopg[binary]"
+            image: postgres:12-alpine
+            db_engine: django_zero_downtime_migrations.backends.postgres
+            db_user: test
+            db_super_user: root
+
+          # old django version support
+          - name: pg17 django5.1
+            python: "3.13"
+            django: "5.1"
+            psycopg_package: "psycopg[binary]"
+            image: postgres:17-alpine
+            db_engine: django_zero_downtime_migrations.backends.postgres
+            db_user: test
+            db_super_user: root
+          - name: pg17 django5.0
+            python: "3.12"
+            django: "5.0"
+            psycopg_package: "psycopg[binary]"
+            image: postgres:17-alpine
+            db_engine: django_zero_downtime_migrations.backends.postgres
+            db_user: test
+            db_super_user: root
+          - name: pg17 django4.2
+            python: "3.12"
+            django: "4.2"
+            psycopg_package: "psycopg[binary]"
+            image: postgres:17-alpine
+            db_engine: django_zero_downtime_migrations.backends.postgres
+            db_user: test
+            db_super_user: root
+    services:
+      postgres:
+        image: ${{ matrix.image }}
+        env: { POSTGRES_USER: root, POSTGRES_PASSWORD: root }
+        ports: ["5432:5432"]
+        options: --health-cmd pg_isready --health-interval 5s --health-retries 20
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v4
+
+      - name: set up uv
+        uses: astral-sh/setup-uv@v5
+
+      # the tests compare pg_dump output, so pin the client major version
+      - name: install the postgres client
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          codename=$(. /etc/os-release && echo "$VERSION_CODENAME")
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc]" \
+            "http://apt.postgresql.org/pub/repos/apt $codename-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update
+          sudo apt-get install -q -y --no-install-recommends postgresql-client-18
+          echo /usr/lib/postgresql/18/bin >> "$GITHUB_PATH"
+
+      - name: install geodjango libraries
+        if: contains(matrix.image, 'postgis')
+        run: sudo apt-get install -q -y --no-install-recommends gdal-bin
+
+      - name: create the test user
+        if: matrix.db_user == 'test' || matrix.db_super_user == 'test'
+        run: |
+          docker exec ${{ job.services.postgres.id }} \
+            psql -U root -d postgres -c "CREATE USER test WITH PASSWORD 'test' CREATEDB"
+
+      - name: install dependencies
+        run: |
+          uv venv --python ${{ matrix.python }}
+          uv pip install -e . pytest pytest-django pytest-mock \
+            "django==${{ matrix.django }}.*" "${{ matrix.psycopg_package }}"
+
+      - name: run integration tests
+        env:
+          DB_HOST: localhost
+          DB_PORT: "5432"
+          DB_USER: ${{ matrix.db_user }}
+          DB_ENGINE: ${{ matrix.db_engine }}
+          DB_SUPER_USER: ${{ matrix.db_super_user }}
+        run: .venv/bin/pytest tests/integration
+
+  check:
+    name: check
+    if: always()
+    needs: [lint, unit, integration]
+    runs-on: ubuntu-latest
+    steps:
+      - name: verify that every job passed
+        run: |
+          echo "lint: ${{ needs.lint.result }}"
+          echo "unit: ${{ needs.unit.result }}"
+          echo "integration: ${{ needs.integration.result }}"
+          test "${{ needs.lint.result }}" = success
+          test "${{ needs.unit.result }}" = success
+          test "${{ needs.integration.result }}" = success
