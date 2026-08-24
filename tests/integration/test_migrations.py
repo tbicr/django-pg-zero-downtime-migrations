@@ -216,6 +216,46 @@ def test_good_flow_db_on_delete():
 
 @skip_for_default_django_backend
 @pytest.mark.django_db(transaction=True)
+@pytest.mark.skipif(django.VERSION[:2] < (6, 1), reason="functionality provided in django 6.1")
+@modify_settings(INSTALLED_APPS={"append": "tests.apps.rename_and_drop_app"})
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=False)
+def test_rename_table_and_drop_column():
+    call_command("migrate", "rename_and_drop_app", "0001")
+
+    # sqlmigrate prints the rename and does not execute it, thus the introspection of the dropped
+    # column must find the table under the name it still has in the database, while the collected
+    # sql must use the name that the table gets after the rename
+    migration_sql = call_command("sqlmigrate", "rename_and_drop_app", "0002")
+    assert split_sql_queries(migration_sql) == [
+        one_line_sql("""
+            ALTER TABLE "rename_and_drop_test_table_old"
+            RENAME TO "rename_and_drop_test_table_new";
+        """),
+        one_line_sql("""
+            DROP INDEX CONCURRENTLY IF EXISTS "rename_and_drop_test_table_old_test_field_indexed_910f3490";
+        """),  # the index keeps the name it got from the old table name
+        one_line_sql("""
+            ALTER TABLE "rename_and_drop_test_table_new"
+            DROP COLUMN "test_field_indexed";
+        """),
+        one_line_sql("""
+            ALTER TABLE "rename_and_drop_test_table_new"
+            DROP CONSTRAINT "rename_and_drop_test_table_old_test_field_unique_key";
+        """),  # the constraint keeps the name it got from the old table name
+        one_line_sql("""
+            ALTER TABLE "rename_and_drop_test_table_new"
+            DROP COLUMN "test_field_unique";
+        """),
+    ]
+
+    call_command("migrate", "rename_and_drop_app", "0002")
+    schema = pg_dump("rename_and_drop_test_table_new")
+    assert "test_field_indexed" not in schema
+    assert "test_field_unique" not in schema
+
+
+@skip_for_default_django_backend
+@pytest.mark.django_db(transaction=True)
 @modify_settings(INSTALLED_APPS={"append": "tests.apps.good_flow_drop_table_with_constraints"})
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_good_flow_drop_table_with_constraints():
