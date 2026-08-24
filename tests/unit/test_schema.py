@@ -1108,6 +1108,54 @@ def test_alter_field_type_decimal10_2_to_decimal20_2__ok():
 
 
 @pytest.mark.django_db
+@pytest.mark.skipif(django.VERSION[:2] < (6, 1), reason='functionality provided in django 6.1')
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_alter_field_type_decimal10_2_to_decimal__ok():
+    with cmp_schema_editor() as editor:
+        old_field = models.DecimalField(max_digits=10, decimal_places=2)
+        old_field.set_attributes_from_name('field')
+        new_field = models.DecimalField()
+        new_field.set_attributes_from_name('field')
+        editor.alter_field(Model, old_field, new_field)
+    assert editor.collected_sql == timeouts(editor.django_sql)
+    assert editor.django_sql == [
+        'ALTER TABLE "tests_model" ALTER COLUMN "field" TYPE numeric;',
+    ]
+
+
+@pytest.mark.django_db
+@pytest.mark.skipif(django.VERSION[:2] < (6, 1), reason='functionality provided in django 6.1')
+def test_alter_field_type_decimal_to_decimal10_2__warning():
+    with cmp_schema_editor() as editor:
+        with pytest.warns(UnsafeOperationWarning, match='ALTER COLUMN TYPE is unsafe operation'):
+            old_field = models.DecimalField()
+            old_field.set_attributes_from_name('field')
+            new_field = models.DecimalField(max_digits=10, decimal_places=2)
+            new_field.set_attributes_from_name('field')
+            editor.alter_field(Model, old_field, new_field)
+    assert editor.collected_sql == timeouts(editor.django_sql)
+    assert editor.django_sql == [
+        'ALTER TABLE "tests_model" ALTER COLUMN "field" TYPE numeric(10, 2);',
+    ]
+
+
+@pytest.mark.django_db
+@pytest.mark.skipif(django.VERSION[:2] < (6, 1), reason='functionality provided in django 6.1')
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_alter_field_type_decimal_to_decimal10_2__raise():
+    with cmp_schema_editor() as editor:
+        with pytest.raises(UnsafeOperationException, match='ALTER COLUMN TYPE is unsafe operation'):
+            old_field = models.DecimalField()
+            old_field.set_attributes_from_name('field')
+            new_field = models.DecimalField(max_digits=10, decimal_places=2)
+            new_field.set_attributes_from_name('field')
+            editor.alter_field(Model, old_field, new_field)
+    assert editor.django_sql == [
+        'ALTER TABLE "tests_model" ALTER COLUMN "field" TYPE numeric(10, 2);',
+    ]
+
+
+@pytest.mark.django_db
 def test_alter_field_type_decimal10_2_to_decimal10_3__warning():
     with cmp_schema_editor() as editor:
         with pytest.warns(UnsafeOperationWarning, match='ALTER COLUMN TYPE is unsafe operation'):
