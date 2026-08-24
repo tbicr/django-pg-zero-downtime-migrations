@@ -1,6 +1,20 @@
 # django-pg-zero-downtime-migrations Changelog
 
 ## 0.20 (Unreleased)
+- added python 3.14 support
+- added django 6.0 support
+- added django 6.1 support
+- added postgres 18 support
+- marked python 3.8 support as deprecated
+- marked python 3.9 support as deprecated
+- marked python 3.10 support as deprecated
+- marked python 3.11 support as deprecated
+- marked django 4.2 support as deprecated
+- marked django 5.0 support as deprecated
+- marked django 5.1 support as deprecated
+- marked postgres 14 support as deprecated
+- dropped postgres 12 support
+- dropped postgres 13 support
 - moved package metadata to `pyproject.toml`
 - moved test configuration to `pyproject.toml`
 - replaced `flake8` and `isort` with `ruff`
