@@ -5,6 +5,7 @@
 - moved test configuration to `pyproject.toml`
 - replaced `flake8` and `isort` with `ruff`
 - switched the `tox` environments to `uv`
+- switched release builds to `uv build` and updated the github actions
 
 ## 0.19
 - added django 5.2 support
