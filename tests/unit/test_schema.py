@@ -1115,9 +1115,14 @@ def test_remove_field__ok():
         field.set_attributes_from_name('field')
         editor.remove_field(Model, field)
     assert editor.collected_sql == timeouts(editor.django_sql)
-    assert editor.django_sql == [
-        'ALTER TABLE "tests_model" DROP COLUMN "field" CASCADE;',
-    ]
+    if django.VERSION[:2] >= (6, 0):
+        assert editor.django_sql == [
+            'ALTER TABLE "tests_model" DROP COLUMN "field";',
+        ]
+    else:
+        assert editor.django_sql == [
+            'ALTER TABLE "tests_model" DROP COLUMN "field" CASCADE;',
+        ]
 
 
 @pytest.mark.django_db
@@ -1138,15 +1143,26 @@ def test_remove_field_with_foreign_key__ok(cursor, mocker):
         field = models.CharField(max_length=40)
         field.set_attributes_from_name('field')
         editor.remove_field(Model, field)
-    assert editor.collected_sql == timeouts(
-        'SET CONSTRAINTS "tests_model_field_fk" IMMEDIATE; '
-        'ALTER TABLE "tests_model" DROP CONSTRAINT "tests_model_field_fk";'
-    ) + timeouts(
-        'ALTER TABLE "tests_model" DROP COLUMN "field" CASCADE;'
-    )
-    assert editor.django_sql == [
-        'ALTER TABLE "tests_model" DROP COLUMN "field" CASCADE;',
-    ]
+    if django.VERSION[:2] >= (6, 0):
+        assert editor.collected_sql == timeouts(
+            'SET CONSTRAINTS "tests_model_field_fk" IMMEDIATE; '
+            'ALTER TABLE "tests_model" DROP CONSTRAINT "tests_model_field_fk";'
+        ) + timeouts(
+            'ALTER TABLE "tests_model" DROP COLUMN "field";'
+        )
+        assert editor.django_sql == [
+            'ALTER TABLE "tests_model" DROP COLUMN "field";',
+        ]
+    else:
+        assert editor.collected_sql == timeouts(
+            'SET CONSTRAINTS "tests_model_field_fk" IMMEDIATE; '
+            'ALTER TABLE "tests_model" DROP CONSTRAINT "tests_model_field_fk";'
+        ) + timeouts(
+            'ALTER TABLE "tests_model" DROP COLUMN "field" CASCADE;'
+        )
+        assert editor.django_sql == [
+            'ALTER TABLE "tests_model" DROP COLUMN "field" CASCADE;',
+        ]
 
 
 @pytest.mark.django_db
@@ -1167,15 +1183,26 @@ def test_remove_field_with_foreign_key_backref__ok(cursor, mocker):
         field = models.CharField(max_length=40)
         field.set_attributes_from_name('field')
         editor.remove_field(Model, field)
-    assert editor.collected_sql == timeouts(
-        'SET CONSTRAINTS "tests_model2_model_field_fk" IMMEDIATE; '
-        'ALTER TABLE "tests_model2" DROP CONSTRAINT "tests_model2_model_field_fk";'
-    ) + timeouts(
-        'ALTER TABLE "tests_model" DROP COLUMN "field" CASCADE;'
-    )
-    assert editor.django_sql == [
-        'ALTER TABLE "tests_model" DROP COLUMN "field" CASCADE;',
-    ]
+    if django.VERSION[:2] >= (6, 0):
+        assert editor.collected_sql == timeouts(
+            'SET CONSTRAINTS "tests_model2_model_field_fk" IMMEDIATE; '
+            'ALTER TABLE "tests_model2" DROP CONSTRAINT "tests_model2_model_field_fk";'
+        ) + timeouts(
+            'ALTER TABLE "tests_model" DROP COLUMN "field";'
+        )
+        assert editor.django_sql == [
+            'ALTER TABLE "tests_model" DROP COLUMN "field";',
+        ]
+    else:
+        assert editor.collected_sql == timeouts(
+            'SET CONSTRAINTS "tests_model2_model_field_fk" IMMEDIATE; '
+            'ALTER TABLE "tests_model2" DROP CONSTRAINT "tests_model2_model_field_fk";'
+        ) + timeouts(
+            'ALTER TABLE "tests_model" DROP COLUMN "field" CASCADE;'
+        )
+        assert editor.django_sql == [
+            'ALTER TABLE "tests_model" DROP COLUMN "field" CASCADE;',
+        ]
 
 
 @pytest.mark.django_db
@@ -1197,14 +1224,24 @@ def test_remove_field_with_unique_constraint__ok(cursor, mocker):
         field = models.CharField(max_length=40)
         field.set_attributes_from_name('field')
         editor.remove_field(Model, field)
-    assert editor.collected_sql == timeouts(
-        'ALTER TABLE "tests_model" DROP CONSTRAINT "tests_model_field2_field_uniq";',
-    ) + timeouts(
-        'ALTER TABLE "tests_model" DROP COLUMN "field" CASCADE;',
-    )
-    assert editor.django_sql == [
-        'ALTER TABLE "tests_model" DROP COLUMN "field" CASCADE;',
-    ]
+    if django.VERSION[:2] >= (6, 0):
+        assert editor.collected_sql == timeouts(
+            'ALTER TABLE "tests_model" DROP CONSTRAINT "tests_model_field2_field_uniq";',
+        ) + timeouts(
+            'ALTER TABLE "tests_model" DROP COLUMN "field";',
+        )
+        assert editor.django_sql == [
+            'ALTER TABLE "tests_model" DROP COLUMN "field";',
+        ]
+    else:
+        assert editor.collected_sql == timeouts(
+            'ALTER TABLE "tests_model" DROP CONSTRAINT "tests_model_field2_field_uniq";',
+        ) + timeouts(
+            'ALTER TABLE "tests_model" DROP COLUMN "field" CASCADE;',
+        )
+        assert editor.django_sql == [
+            'ALTER TABLE "tests_model" DROP COLUMN "field" CASCADE;',
+        ]
 
 
 @pytest.mark.django_db
@@ -1223,14 +1260,24 @@ def test_remove_field_with_index__ok(cursor, mocker):
         field = models.CharField(max_length=40)
         field.set_attributes_from_name('field')
         editor.remove_field(Model, field)
-    assert editor.collected_sql == [
-        'DROP INDEX CONCURRENTLY IF EXISTS "tests_model_field2_field_idx";',
-    ] + timeouts(
-        'ALTER TABLE "tests_model" DROP COLUMN "field" CASCADE;',
-    )
-    assert editor.django_sql == [
-        'ALTER TABLE "tests_model" DROP COLUMN "field" CASCADE;',
-    ]
+    if django.VERSION[:2] >= (6, 0):
+        assert editor.collected_sql == [
+            'DROP INDEX CONCURRENTLY IF EXISTS "tests_model_field2_field_idx";',
+        ] + timeouts(
+            'ALTER TABLE "tests_model" DROP COLUMN "field";',
+        )
+        assert editor.django_sql == [
+            'ALTER TABLE "tests_model" DROP COLUMN "field";',
+        ]
+    else:
+        assert editor.collected_sql == [
+            'DROP INDEX CONCURRENTLY IF EXISTS "tests_model_field2_field_idx";',
+        ] + timeouts(
+            'ALTER TABLE "tests_model" DROP COLUMN "field" CASCADE;',
+        )
+        assert editor.django_sql == [
+            'ALTER TABLE "tests_model" DROP COLUMN "field" CASCADE;',
+        ]
 
 
 @pytest.mark.django_db
@@ -1250,14 +1297,24 @@ def test_remove_field_with_index__with_flexible_timeout__ok(cursor, mocker):
         field = models.CharField(max_length=40)
         field.set_attributes_from_name('field')
         editor.remove_field(Model, field)
-    assert editor.collected_sql == flexible_statement_timeout(
-        'DROP INDEX CONCURRENTLY IF EXISTS "tests_model_field2_field_idx";',
-    ) + timeouts(
-        'ALTER TABLE "tests_model" DROP COLUMN "field" CASCADE;',
-    )
-    assert editor.django_sql == [
-        'ALTER TABLE "tests_model" DROP COLUMN "field" CASCADE;',
-    ]
+    if django.VERSION[:2] >= (6, 0):
+        assert editor.collected_sql == flexible_statement_timeout(
+            'DROP INDEX CONCURRENTLY IF EXISTS "tests_model_field2_field_idx";',
+        ) + timeouts(
+            'ALTER TABLE "tests_model" DROP COLUMN "field";',
+        )
+        assert editor.django_sql == [
+            'ALTER TABLE "tests_model" DROP COLUMN "field";',
+        ]
+    else:
+        assert editor.collected_sql == flexible_statement_timeout(
+            'DROP INDEX CONCURRENTLY IF EXISTS "tests_model_field2_field_idx";',
+        ) + timeouts(
+            'ALTER TABLE "tests_model" DROP COLUMN "field" CASCADE;',
+        )
+        assert editor.django_sql == [
+            'ALTER TABLE "tests_model" DROP COLUMN "field" CASCADE;',
+        ]
 
 
 @pytest.mark.django_db
