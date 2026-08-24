@@ -345,17 +345,30 @@ class DatabaseSchemaEditorMixin:
         idempotent_condition=Condition(_sql_constraint_exists, True),
     )
 
-    sql_create_fk = MultiStatementSQL(
-        PGAccessExclusive(
-            "ALTER TABLE %(table)s ADD CONSTRAINT %(name)s FOREIGN KEY (%(column)s) "
-            "REFERENCES %(to_table)s (%(to_column)s)%(deferrable)s NOT VALID",
-            idempotent_condition=Condition(_sql_constraint_exists, False),
-        ),
-        PGShareUpdateExclusive(
-            "ALTER TABLE %(table)s VALIDATE CONSTRAINT %(name)s",
-            disable_statement_timeout=True,
-        ),
-    )
+    if django.VERSION[:2] >= (6, 1):
+        sql_create_fk = MultiStatementSQL(
+            PGAccessExclusive(
+                "ALTER TABLE %(table)s ADD CONSTRAINT %(name)s FOREIGN KEY (%(column)s) "
+                "REFERENCES %(to_table)s (%(to_column)s)%(on_delete_db)s%(deferrable)s NOT VALID",
+                idempotent_condition=Condition(_sql_constraint_exists, False),
+            ),
+            PGShareUpdateExclusive(
+                "ALTER TABLE %(table)s VALIDATE CONSTRAINT %(name)s",
+                disable_statement_timeout=True,
+            ),
+        )
+    else:
+        sql_create_fk = MultiStatementSQL(
+            PGAccessExclusive(
+                "ALTER TABLE %(table)s ADD CONSTRAINT %(name)s FOREIGN KEY (%(column)s) "
+                "REFERENCES %(to_table)s (%(to_column)s)%(deferrable)s NOT VALID",
+                idempotent_condition=Condition(_sql_constraint_exists, False),
+            ),
+            PGShareUpdateExclusive(
+                "ALTER TABLE %(table)s VALIDATE CONSTRAINT %(name)s",
+                disable_statement_timeout=True,
+            ),
+        )
     sql_delete_fk = PGAccessExclusive(
         PostgresDatabaseSchemaEditor.sql_delete_fk,
         idempotent_condition=Condition(_sql_constraint_exists, True),

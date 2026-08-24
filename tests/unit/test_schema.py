@@ -15,6 +15,9 @@ from django_zero_downtime_migrations.backends.postgres.schema import UnsafeOpera
 
 DatabaseSchemaEditor = import_string(settings.DATABASES['default']['ENGINE'] + '.schema.DatabaseSchemaEditor')
 
+if django.VERSION[:2] >= (6, 1):
+    from django.db.models import DB_CASCADE, DB_SET_DEFAULT, DB_SET_NULL
+
 
 START_TIMEOUTS = [
     'SET statement_timeout TO \'0\';',
@@ -456,6 +459,119 @@ def test_add_field_with_foreign_key__with_flexible_timeout__ok():
         'ALTER TABLE "tests_model" ADD COLUMN "field_id" bigint NULL '
         'CONSTRAINT "tests_model_field_id_0166400c_fk_tests_model2_id" '
         'REFERENCES "tests_model2"("id") DEFERRABLE INITIALLY DEFERRED; '
+        'SET CONSTRAINTS "tests_model_field_id_0166400c_fk_tests_model2_id" IMMEDIATE;',
+        'CREATE INDEX "tests_model_field_id_0166400c" ON "tests_model" ("field_id");',
+    ]
+
+
+@pytest.mark.django_db
+@pytest.mark.skipif(django.VERSION[:2] < (6, 1), reason='functionality provided in django 6.1')
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_add_field_with_foreign_key_db_cascade__ok():
+    with cmp_schema_editor() as editor:
+        field = models.ForeignKey(Model2, null=True, on_delete=DB_CASCADE)
+        field.set_attributes_from_name('field')
+        editor.add_field(Model, field)
+    assert editor.collected_sql == timeouts(
+        'ALTER TABLE "tests_model" ADD COLUMN "field_id" bigint NULL;',
+    ) + timeouts(
+        'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_id_0166400c_fk_tests_model2_id" '
+        'FOREIGN KEY ("field_id") REFERENCES "tests_model2" ("id") ON DELETE CASCADE '
+        'DEFERRABLE INITIALLY DEFERRED NOT VALID;',
+    ) + [
+        'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_id_0166400c_fk_tests_model2_id";',
+    ] + [
+        'CREATE INDEX CONCURRENTLY "tests_model_field_id_0166400c" ON "tests_model" ("field_id");',
+    ]
+    assert editor.django_sql == [
+        'ALTER TABLE "tests_model" ADD COLUMN "field_id" bigint NULL '
+        'CONSTRAINT "tests_model_field_id_0166400c_fk_tests_model2_id" '
+        'REFERENCES "tests_model2"("id") ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED; '
+        'SET CONSTRAINTS "tests_model_field_id_0166400c_fk_tests_model2_id" IMMEDIATE;',
+        'CREATE INDEX "tests_model_field_id_0166400c" ON "tests_model" ("field_id");',
+    ]
+
+
+@pytest.mark.django_db
+@pytest.mark.skipif(django.VERSION[:2] < (6, 1), reason='functionality provided in django 6.1')
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
+                   ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
+def test_add_field_with_foreign_key_db_cascade__with_flexible_timeout__ok():
+    with cmp_schema_editor() as editor:
+        field = models.ForeignKey(Model2, null=True, on_delete=DB_CASCADE)
+        field.set_attributes_from_name('field')
+        editor.add_field(Model, field)
+    assert editor.collected_sql == timeouts(
+        'ALTER TABLE "tests_model" ADD COLUMN "field_id" bigint NULL;',
+    ) + timeouts(
+        'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_id_0166400c_fk_tests_model2_id" '
+        'FOREIGN KEY ("field_id") REFERENCES "tests_model2" ("id") ON DELETE CASCADE '
+        'DEFERRABLE INITIALLY DEFERRED NOT VALID;',
+    ) + flexible_statement_timeout(
+        'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_id_0166400c_fk_tests_model2_id";',
+    ) + flexible_statement_timeout(
+        'CREATE INDEX CONCURRENTLY "tests_model_field_id_0166400c" ON "tests_model" ("field_id");',
+    )
+    assert editor.django_sql == [
+        'ALTER TABLE "tests_model" ADD COLUMN "field_id" bigint NULL '
+        'CONSTRAINT "tests_model_field_id_0166400c_fk_tests_model2_id" '
+        'REFERENCES "tests_model2"("id") ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED; '
+        'SET CONSTRAINTS "tests_model_field_id_0166400c_fk_tests_model2_id" IMMEDIATE;',
+        'CREATE INDEX "tests_model_field_id_0166400c" ON "tests_model" ("field_id");',
+    ]
+
+
+@pytest.mark.django_db
+@pytest.mark.skipif(django.VERSION[:2] < (6, 1), reason='functionality provided in django 6.1')
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_add_field_with_foreign_key_db_set_null__ok():
+    with cmp_schema_editor() as editor:
+        field = models.ForeignKey(Model2, null=True, on_delete=DB_SET_NULL)
+        field.set_attributes_from_name('field')
+        editor.add_field(Model, field)
+    assert editor.collected_sql == timeouts(
+        'ALTER TABLE "tests_model" ADD COLUMN "field_id" bigint NULL;',
+    ) + timeouts(
+        'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_id_0166400c_fk_tests_model2_id" '
+        'FOREIGN KEY ("field_id") REFERENCES "tests_model2" ("id") ON DELETE SET NULL '
+        'DEFERRABLE INITIALLY DEFERRED NOT VALID;',
+    ) + [
+        'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_id_0166400c_fk_tests_model2_id";',
+    ] + [
+        'CREATE INDEX CONCURRENTLY "tests_model_field_id_0166400c" ON "tests_model" ("field_id");',
+    ]
+    assert editor.django_sql == [
+        'ALTER TABLE "tests_model" ADD COLUMN "field_id" bigint NULL '
+        'CONSTRAINT "tests_model_field_id_0166400c_fk_tests_model2_id" '
+        'REFERENCES "tests_model2"("id") ON DELETE SET NULL DEFERRABLE INITIALLY DEFERRED; '
+        'SET CONSTRAINTS "tests_model_field_id_0166400c_fk_tests_model2_id" IMMEDIATE;',
+        'CREATE INDEX "tests_model_field_id_0166400c" ON "tests_model" ("field_id");',
+    ]
+
+
+@pytest.mark.django_db
+@pytest.mark.skipif(django.VERSION[:2] < (6, 1), reason='functionality provided in django 6.1')
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_add_field_with_foreign_key_db_set_default__ok():
+    with cmp_schema_editor() as editor:
+        field = models.ForeignKey(Model2, null=True, on_delete=DB_SET_DEFAULT)
+        field.set_attributes_from_name('field')
+        editor.add_field(Model, field)
+    assert editor.collected_sql == timeouts(
+        'ALTER TABLE "tests_model" ADD COLUMN "field_id" bigint NULL;',
+    ) + timeouts(
+        'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_id_0166400c_fk_tests_model2_id" '
+        'FOREIGN KEY ("field_id") REFERENCES "tests_model2" ("id") ON DELETE SET DEFAULT '
+        'DEFERRABLE INITIALLY DEFERRED NOT VALID;',
+    ) + [
+        'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_id_0166400c_fk_tests_model2_id";',
+    ] + [
+        'CREATE INDEX CONCURRENTLY "tests_model_field_id_0166400c" ON "tests_model" ("field_id");',
+    ]
+    assert editor.django_sql == [
+        'ALTER TABLE "tests_model" ADD COLUMN "field_id" bigint NULL '
+        'CONSTRAINT "tests_model_field_id_0166400c_fk_tests_model2_id" '
+        'REFERENCES "tests_model2"("id") ON DELETE SET DEFAULT DEFERRABLE INITIALLY DEFERRED; '
         'SET CONSTRAINTS "tests_model_field_id_0166400c_fk_tests_model2_id" IMMEDIATE;',
         'CREATE INDEX "tests_model_field_id_0166400c" ON "tests_model" ("field_id");',
     ]
@@ -1431,6 +1547,59 @@ def test_alter_filed_add_constraint_foreign_key__with_flexible_timeout__ok():
         'CREATE INDEX "tests_model_field_id_0166400c" ON "tests_model" ("field_id");',
         'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_id_0166400c_fk_tests_model2_id" '
         'FOREIGN KEY ("field_id") REFERENCES "tests_model2" ("id") DEFERRABLE INITIALLY DEFERRED;',
+    ]
+
+
+@pytest.mark.django_db
+@pytest.mark.skipif(django.VERSION[:2] < (6, 1), reason='functionality provided in django 6.1')
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_alter_field_add_constraint_foreign_key_db_cascade__ok():
+    with cmp_schema_editor() as editor:
+        old_field = models.BigIntegerField()
+        old_field.set_attributes_from_name('field_id')
+        new_field = models.ForeignKey(Model2, on_delete=DB_CASCADE)
+        new_field.set_attributes_from_name('field')
+        editor.alter_field(Model, old_field, new_field)
+    assert editor.collected_sql == [
+        'CREATE INDEX CONCURRENTLY "tests_model_field_id_0166400c" ON "tests_model" ("field_id");',
+    ] + timeouts(
+        'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_id_0166400c_fk_tests_model2_id" '
+        'FOREIGN KEY ("field_id") REFERENCES "tests_model2" ("id") ON DELETE CASCADE '
+        'DEFERRABLE INITIALLY DEFERRED NOT VALID;',
+    ) + [
+        'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_id_0166400c_fk_tests_model2_id";',
+    ]
+    assert editor.django_sql == [
+        'CREATE INDEX "tests_model_field_id_0166400c" ON "tests_model" ("field_id");',
+        'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_id_0166400c_fk_tests_model2_id" '
+        'FOREIGN KEY ("field_id") REFERENCES "tests_model2" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED;',
+    ]
+
+
+@pytest.mark.django_db
+@pytest.mark.skipif(django.VERSION[:2] < (6, 1), reason='functionality provided in django 6.1')
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
+                   ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
+def test_alter_field_add_constraint_foreign_key_db_cascade__with_flexible_timeout__ok():
+    with cmp_schema_editor() as editor:
+        old_field = models.BigIntegerField()
+        old_field.set_attributes_from_name('field_id')
+        new_field = models.ForeignKey(Model2, on_delete=DB_CASCADE)
+        new_field.set_attributes_from_name('field')
+        editor.alter_field(Model, old_field, new_field)
+    assert editor.collected_sql == flexible_statement_timeout(
+        'CREATE INDEX CONCURRENTLY "tests_model_field_id_0166400c" ON "tests_model" ("field_id");',
+    ) + timeouts(
+        'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_id_0166400c_fk_tests_model2_id" '
+        'FOREIGN KEY ("field_id") REFERENCES "tests_model2" ("id") ON DELETE CASCADE '
+        'DEFERRABLE INITIALLY DEFERRED NOT VALID;',
+    ) + flexible_statement_timeout(
+        'ALTER TABLE "tests_model" VALIDATE CONSTRAINT "tests_model_field_id_0166400c_fk_tests_model2_id";',
+    )
+    assert editor.django_sql == [
+        'CREATE INDEX "tests_model_field_id_0166400c" ON "tests_model" ("field_id");',
+        'ALTER TABLE "tests_model" ADD CONSTRAINT "tests_model_field_id_0166400c_fk_tests_model2_id" '
+        'FOREIGN KEY ("field_id") REFERENCES "tests_model2" ("id") ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED;',
     ]
 
 

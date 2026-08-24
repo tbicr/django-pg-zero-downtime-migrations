@@ -157,6 +157,42 @@ def test_decimal_to_float_app():
 
 @skip_for_default_django_backend
 @pytest.mark.django_db(transaction=True)
+@pytest.mark.skipif(django.VERSION[:2] < (6, 1), reason="functionality provided in django 6.1")
+@modify_settings(INSTALLED_APPS={"append": "tests.apps.good_flow_db_on_delete_app"})
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_good_flow_db_on_delete():
+    call_command("migrate", "good_flow_db_on_delete_app", "0001")
+
+    _create_index_sql = one_line_sql("""
+        CREATE INDEX CONCURRENTLY "good_flow_db_on_delete_app_test_field_int_6647d4b8"
+        ON "good_flow_db_on_delete_app_relatedtesttable" ("test_field_int");
+    """)
+    _add_foreign_key_constraint_sql = one_line_sql("""
+        ALTER TABLE "good_flow_db_on_delete_app_relatedtesttable"
+        ADD CONSTRAINT "good_flow_db_on_dele_test_field_int_6647d4b8_fk_good_flow"
+        FOREIGN KEY ("test_field_int")
+        REFERENCES "good_flow_db_on_delete_app_testtable" ("id")
+        ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED NOT VALID;
+    """)
+    _validate_foreign_key_constraint_sql = one_line_sql("""
+        ALTER TABLE "good_flow_db_on_delete_app_relatedtesttable"
+        VALIDATE CONSTRAINT "good_flow_db_on_dele_test_field_int_6647d4b8_fk_good_flow";
+    """)
+
+    migration_sql = call_command("sqlmigrate", "good_flow_db_on_delete_app", "0002")
+    assert split_sql_queries(migration_sql) == [
+        _create_index_sql,
+        _add_foreign_key_constraint_sql,
+        _validate_foreign_key_constraint_sql,
+    ]
+
+    call_command("migrate", "good_flow_db_on_delete_app", "0002")
+    # the collected sql alone does not prove that the clause reached the database
+    assert "ON DELETE CASCADE" in pg_dump("good_flow_db_on_delete_app_relatedtesttable")
+
+
+@skip_for_default_django_backend
+@pytest.mark.django_db(transaction=True)
 @modify_settings(INSTALLED_APPS={"append": "tests.apps.good_flow_drop_table_with_constraints"})
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_good_flow_drop_table_with_constraints():
