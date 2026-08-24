@@ -1,6 +1,6 @@
 [build-system]
-requires = ["setuptools>=77.0.0"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling>=1.27", "hatch-fancy-pypi-readme"]
+build-backend = "hatchling.build"
 
 [project]
 name = "django-pg-zero-downtime-migrations"
@@ -43,6 +43,9 @@ dev = [
 
 [project.urls]
 Homepage = "https://github.com/tbicr/django-pg-zero-downtime-migrations"
+Repository = "https://github.com/tbicr/django-pg-zero-downtime-migrations"
+Changelog = "https://github.com/tbicr/django-pg-zero-downtime-migrations/blob/master/CHANGES.md"
+Issues = "https://github.com/tbicr/django-pg-zero-downtime-migrations/issues"
 
 [tool.ruff]
 line-length = 120
@@ -64,9 +67,34 @@ addopts = "--verbose"
 python_files = "tests/*/test*.py"
 DJANGO_SETTINGS_MODULE = "tests.settings"
 
-[tool.setuptools.dynamic]
-version = { attr = "django_zero_downtime_migrations.__version__" }
+[tool.hatch.version]
+path = "django_zero_downtime_migrations/__init__.py"
 
-[tool.setuptools.packages.find]
-include = ["django_zero_downtime_migrations*"]
-namespaces = false
+[tool.hatch.build.targets.wheel]
+packages = ["django_zero_downtime_migrations"]
+
+# hatchling adds every file that git does not ignore, so list the files explicitly
+[tool.hatch.build.targets.sdist]
+include = [
+    "django_zero_downtime_migrations",
+    "AUTHORS",
+    "CHANGES.md",
+    "README.md",
+]
+
+[tool.hatch.metadata.hooks.fancy-pypi-readme]
+content-type = "text/markdown"
+
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.fragments]]
+path = "README.md"
+
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.fragments]]
+text = "\n\n"
+
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.fragments]]
+path = "CHANGES.md"
+
+# pypi cannot render relative image paths, so point them to the released tag
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.substitutions]]
+pattern = '\(images/'
+replacement = '(https://raw.githubusercontent.com/tbicr/django-pg-zero-downtime-migrations/$HFPR_VERSION/images/'

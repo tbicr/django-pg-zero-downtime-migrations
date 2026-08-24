@@ -6,6 +6,7 @@
 - replaced `flake8` and `isort` with `ruff`
 - switched the `tox` environments to `uv`
 - switched release builds to `uv build` and updated the github actions
+- replaced `setuptools` with `hatchling` and generated the package description with `hatch-fancy-pypi-readme`
 
 ## 0.19
 - added django 5.2 support
