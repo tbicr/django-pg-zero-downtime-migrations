@@ -1002,6 +1002,8 @@ class DatabaseSchemaEditorMixin:
                     return False
         old_type_numeric_match = self._numeric_type_regexp.match(old_type)
         if old_type_numeric_match:
+            if new_type == "numeric":
+                return True
             new_type_numeric_match = self._numeric_type_regexp.match(new_type)
             old_type_precision = int(old_type_numeric_match.group("precision"))
             old_type_scale = int(old_type_numeric_match.group("scale"))
