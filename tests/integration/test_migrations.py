@@ -136,6 +136,29 @@ def test_bad_flow_add_column_with_notnull():
 
 @skip_for_default_django_backend
 @pytest.mark.django_db(transaction=True)
+@pytest.mark.skipif(django.VERSION[:2] < (6, 1), reason="functionality provided in django 6.1")
+@modify_settings(INSTALLED_APPS={"append": "tests.apps.good_flow_add_column_generated_virtual_app"})
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_good_flow_add_column_generated_virtual():
+    if connection.pg_version < 180000:
+        pytest.skip("functionality provided in postgres 18")
+    call_command("migrate", "good_flow_add_column_generated_virtual_app")
+    assert "GENERATED ALWAYS AS" in pg_dump("good_flow_add_column_generated_virtual_app_testtable")
+
+
+@skip_for_default_django_backend
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.skipif(django.VERSION[:2] < (5, 0), reason="functionality provided in django 5.0")
+@modify_settings(INSTALLED_APPS={"append": "tests.apps.bad_flow_add_column_generated_stored_app"})
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_bad_flow_add_column_generated_stored():
+    # forward
+    with pytest.raises(UnsafeOperationException):
+        call_command("migrate", "bad_flow_add_column_generated_stored_app")
+
+
+@skip_for_default_django_backend
+@pytest.mark.django_db(transaction=True)
 @modify_settings(INSTALLED_APPS={"append": "tests.apps.bad_flow_change_char_type_that_unsafe_app"})
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_bad_flow_change_char_type_that_unsafe():
