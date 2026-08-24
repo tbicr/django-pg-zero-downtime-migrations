@@ -295,6 +295,43 @@ def test_add_field__ok():
 
 @pytest.mark.django_db
 @override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_add_field_with_comment__ok():
+    with cmp_schema_editor() as editor:
+        field = models.IntegerField(null=True, db_comment='test comment')
+        field.set_attributes_from_name('field')
+        editor.add_field(Model, field)
+    assert editor.collected_sql == timeouts(
+        'ALTER TABLE "tests_model" ADD COLUMN "field" integer NULL;',
+    ) + [
+        'COMMENT ON COLUMN "tests_model"."field" IS \'test comment\';',
+    ]
+    assert editor.django_sql == [
+        'ALTER TABLE "tests_model" ADD COLUMN "field" integer NULL;',
+        'COMMENT ON COLUMN "tests_model"."field" IS \'test comment\';',
+    ]
+
+
+@pytest.mark.django_db
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
+                   ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
+def test_add_field_with_comment__with_flexible_timeout__ok():
+    with cmp_schema_editor() as editor:
+        field = models.IntegerField(null=True, db_comment='test comment')
+        field.set_attributes_from_name('field')
+        editor.add_field(Model, field)
+    assert editor.collected_sql == timeouts(
+        'ALTER TABLE "tests_model" ADD COLUMN "field" integer NULL;',
+    ) + flexible_statement_timeout(
+        'COMMENT ON COLUMN "tests_model"."field" IS \'test comment\';',
+    )
+    assert editor.django_sql == [
+        'ALTER TABLE "tests_model" ADD COLUMN "field" integer NULL;',
+        'COMMENT ON COLUMN "tests_model"."field" IS \'test comment\';',
+    ]
+
+
+@pytest.mark.django_db
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
 def test_add_field_with_code_default_null__ok():
     with cmp_schema_editor() as editor:
         field = models.CharField(max_length=40, default='test', null=True)
@@ -1342,6 +1379,47 @@ def test_alter_field_drop_db_default__ok():
     assert editor.collected_sql == timeouts(editor.django_sql)
     assert editor.django_sql == [
         'ALTER TABLE "tests_model" ALTER COLUMN "field" DROP DEFAULT;',
+    ]
+
+
+@pytest.mark.django_db
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_alter_field_set_comment__ok():
+    with cmp_schema_editor() as editor:
+        old_field = models.IntegerField(null=True)
+        old_field.set_attributes_from_name('field')
+        new_field = models.IntegerField(null=True, db_comment='test comment')
+        new_field.set_attributes_from_name('field')
+        editor.alter_field(Model, old_field, new_field)
+    assert editor.collected_sql == timeouts(
+        'ALTER TABLE "tests_model" ALTER COLUMN "field" TYPE integer;',
+    ) + [
+        'COMMENT ON COLUMN "tests_model"."field" IS \'test comment\';',
+    ]
+    assert editor.django_sql == [
+        'ALTER TABLE "tests_model" ALTER COLUMN "field" TYPE integer;',
+        'COMMENT ON COLUMN "tests_model"."field" IS \'test comment\';',
+    ]
+
+
+@pytest.mark.django_db
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True,
+                   ZERO_DOWNTIME_MIGRATIONS_FLEXIBLE_STATEMENT_TIMEOUT=True)
+def test_alter_field_set_comment__with_flexible_timeout__ok():
+    with cmp_schema_editor() as editor:
+        old_field = models.IntegerField(null=True)
+        old_field.set_attributes_from_name('field')
+        new_field = models.IntegerField(null=True, db_comment='test comment')
+        new_field.set_attributes_from_name('field')
+        editor.alter_field(Model, old_field, new_field)
+    assert editor.collected_sql == timeouts(
+        'ALTER TABLE "tests_model" ALTER COLUMN "field" TYPE integer;',
+    ) + flexible_statement_timeout(
+        'COMMENT ON COLUMN "tests_model"."field" IS \'test comment\';',
+    )
+    assert editor.django_sql == [
+        'ALTER TABLE "tests_model" ALTER COLUMN "field" TYPE integer;',
+        'COMMENT ON COLUMN "tests_model"."field" IS \'test comment\';',
     ]
 
 
