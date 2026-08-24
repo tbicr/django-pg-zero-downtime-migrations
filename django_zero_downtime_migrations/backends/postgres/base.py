@@ -1,6 +1,4 @@
-from django.db.backends.postgresql.base import (
-    DatabaseWrapper as PostgresDatabaseWrapper
-)
+from django.db.backends.postgresql.base import DatabaseWrapper as PostgresDatabaseWrapper
 
 from .schema import DatabaseSchemaEditor
 

@@ -34,8 +34,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "flake8",
-    "isort",
+    "ruff",
     "pytest",
     "pytest-django",
     "pytest-mock",
@@ -44,6 +43,21 @@ dev = [
 
 [project.urls]
 Homepage = "https://github.com/tbicr/django-pg-zero-downtime-migrations"
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+# pycodestyle errors and warnings, pyflakes, import order
+select = ["E", "F", "I", "W"]
+
+[tool.ruff.lint.isort]
+combine-as-imports = true
+known-first-party = ["django_zero_downtime_migrations", "tests"]
+section-order = ["future", "standard-library", "django", "third-party", "first-party", "local-folder"]
+
+[tool.ruff.lint.isort.sections]
+django = ["django"]
 
 [tool.pytest.ini_options]
 addopts = "--verbose"

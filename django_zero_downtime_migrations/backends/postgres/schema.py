@@ -6,9 +6,7 @@ import django
 from django.conf import settings
 from django.contrib.postgres.constraints import ExclusionConstraint
 from django.db.backends.ddl_references import Statement, Table
-from django.db.backends.postgresql.schema import (
-    DatabaseSchemaEditor as PostgresDatabaseSchemaEditor
-)
+from django.db.backends.postgresql.schema import DatabaseSchemaEditor as PostgresDatabaseSchemaEditor
 from django.db.models import NOT_PROVIDED
 
 
