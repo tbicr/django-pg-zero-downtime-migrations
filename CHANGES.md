@@ -5,6 +5,7 @@
 - added django 6.0 support
 - added django 6.1 support
 - added postgres 18 support
+- added support for the foreign key `ON DELETE` options at database level in django 6.1
 - updated the documentation with the django 6.0 `DROP COLUMN` limit for `ZERO_DOWNTIME_MIGRATIONS_EXPLICIT_CONSTRAINTS_DROP=False`, that cannot drop a referenced column
 - marked python 3.8 support as deprecated
 - marked python 3.9 support as deprecated
