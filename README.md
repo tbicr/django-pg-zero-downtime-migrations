@@ -397,7 +397,7 @@ A generated column in a `CREATE TABLE` statement is safe. A new table has no row
 
 #### Dealing with `NOT NULL` column constraint
 
-Postgres checks that all column values `NOT NULL` (full table scan) when you are applying `ALTER TABLE ALTER COLUMN SET NOT NULL`, this check skipped if appropriate valid `CHECK CONSTRAINT` exists for postgres 12+. So to make existing column `NOT NULL` safe way you can follow next steps:
+Postgres checks that all column values `NOT NULL` (full table scan) when you are applying `ALTER TABLE ALTER COLUMN SET NOT NULL`, this check skipped if appropriate valid `CHECK CONSTRAINT` exists. So to make existing column `NOT NULL` safe way you can follow next steps:
 - `ALTER TABLE ADD CONSTRAINT CHECK (column IS NOT NULL) NOT VALID` - create invalid check constraint for column, this operation takes `ACCESS EXCLUSIVE` lock only for table metadata update
 - `ALTER TABLE VALIDATE CONSTRAINT` - validate constraint, at this moment all column values should be `NOT NULL`, this operation takes `SHARE UPDATE EXCLUSIVE` lock until full table scan will be completed
 - `ALTER TABLE ALTER COLUMN SET NOT NULL` - set column `NOT NULL` don't check column values if appropriate valid `CHECK CONSTRAINT` exists, in this case this operation takes `ACCESS EXCLUSIVE` lock only for table metadata update
