@@ -64,6 +64,28 @@ class ModelWithUniqueTogether(models.Model):
         unique_together = [('field1', 'field2')]
 
 
+class ModelWithMixedCaseDbTable(models.Model):
+    field = models.IntegerField(db_index=True)
+    field2 = models.IntegerField(null=True, unique=True)
+
+    class Meta:
+        db_table = 'MixedCaseDbTable'
+
+
+class ModelWithMixedCaseDbTableRelated(models.Model):
+    related = models.ForeignKey(ModelWithMixedCaseDbTable, to_field='field2', null=True, on_delete=models.CASCADE)
+
+    class Meta:
+        db_table = 'MixedCaseDbTableRelated'
+
+
+class ModelWithKeywordDbTable(models.Model):
+    field = models.IntegerField(db_index=True)
+
+    class Meta:
+        db_table = 'order'
+
+
 if django.VERSION[:2] >= (5, 0):
 
     class ModelWithGeneratedStored(models.Model):
@@ -1557,6 +1579,140 @@ def test_remove_field_with_unique_constraint__ok(cursor, mocker):
         )
         assert editor.django_sql == [
             'ALTER TABLE "tests_model" DROP COLUMN "field" CASCADE;',
+        ]
+
+
+@pytest.mark.django_db
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_remove_field_with_index_and_mixed_case_db_table__ok():
+    # the introspection reads the catalog, thus the table must exist, and the test rolls it back
+    with CoreDatabaseSchemaEditor(connection, atomic=False) as editor:
+        editor.create_model(ModelWithMixedCaseDbTable)
+
+    with cmp_schema_editor() as editor:
+        editor.remove_field(ModelWithMixedCaseDbTable, ModelWithMixedCaseDbTable._meta.get_field('field'))
+    if django.VERSION[:2] >= (6, 0):
+        assert editor.collected_sql == [
+            'DROP INDEX CONCURRENTLY IF EXISTS "MixedCaseDbTable_field_a4782ac8";',
+        ] + timeouts(
+            'ALTER TABLE "MixedCaseDbTable" DROP COLUMN "field";',
+        )
+        assert editor.django_sql == [
+            'ALTER TABLE "MixedCaseDbTable" DROP COLUMN "field";',
+        ]
+    else:
+        assert editor.collected_sql == [
+            'DROP INDEX CONCURRENTLY IF EXISTS "MixedCaseDbTable_field_a4782ac8";',
+        ] + timeouts(
+            'ALTER TABLE "MixedCaseDbTable" DROP COLUMN "field" CASCADE;',
+        )
+        assert editor.django_sql == [
+            'ALTER TABLE "MixedCaseDbTable" DROP COLUMN "field" CASCADE;',
+        ]
+
+
+@pytest.mark.django_db
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_remove_field_with_index_and_keyword_db_table__ok():
+    # a keyword needs quotes, the same as an upper case letter
+    with CoreDatabaseSchemaEditor(connection, atomic=False) as editor:
+        editor.create_model(ModelWithKeywordDbTable)
+
+    with cmp_schema_editor() as editor:
+        editor.remove_field(ModelWithKeywordDbTable, ModelWithKeywordDbTable._meta.get_field('field'))
+    if django.VERSION[:2] >= (6, 0):
+        assert editor.collected_sql == [
+            'DROP INDEX CONCURRENTLY IF EXISTS "order_field_2a343da0";',
+        ] + timeouts(
+            'ALTER TABLE "order" DROP COLUMN "field";',
+        )
+        assert editor.django_sql == [
+            'ALTER TABLE "order" DROP COLUMN "field";',
+        ]
+    else:
+        assert editor.collected_sql == [
+            'DROP INDEX CONCURRENTLY IF EXISTS "order_field_2a343da0";',
+        ] + timeouts(
+            'ALTER TABLE "order" DROP COLUMN "field" CASCADE;',
+        )
+        assert editor.django_sql == [
+            'ALTER TABLE "order" DROP COLUMN "field" CASCADE;',
+        ]
+
+
+@pytest.mark.django_db
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_remove_field_with_unique_constraint_and_mixed_case_db_table__ok():
+    # the introspection reads the catalog, thus the tables must exist, and the test rolls them back
+    with CoreDatabaseSchemaEditor(connection, atomic=False) as editor:
+        editor.create_model(ModelWithMixedCaseDbTable)
+        editor.create_model(ModelWithMixedCaseDbTableRelated)
+
+    with cmp_schema_editor() as editor:
+        editor.remove_field(ModelWithMixedCaseDbTable, ModelWithMixedCaseDbTable._meta.get_field('field2'))
+    if django.VERSION[:2] >= (6, 0):
+        assert editor.collected_sql == timeouts(
+            'SET CONSTRAINTS "MixedCaseDbTableRela_related_id_7401f39c_fk_MixedCase" IMMEDIATE; '
+            'ALTER TABLE "MixedCaseDbTableRelated" '
+            'DROP CONSTRAINT "MixedCaseDbTableRela_related_id_7401f39c_fk_MixedCase";'
+        ) + timeouts(
+            'ALTER TABLE "MixedCaseDbTable" DROP CONSTRAINT "MixedCaseDbTable_field2_key";'
+        ) + timeouts(
+            'ALTER TABLE "MixedCaseDbTable" DROP COLUMN "field2";'
+        )
+        assert editor.django_sql == [
+            'ALTER TABLE "MixedCaseDbTable" DROP COLUMN "field2";',
+        ]
+    else:
+        assert editor.collected_sql == timeouts(
+            'SET CONSTRAINTS "MixedCaseDbTableRela_related_id_7401f39c_fk_MixedCase" IMMEDIATE; '
+            'ALTER TABLE "MixedCaseDbTableRelated" '
+            'DROP CONSTRAINT "MixedCaseDbTableRela_related_id_7401f39c_fk_MixedCase";'
+        ) + timeouts(
+            'ALTER TABLE "MixedCaseDbTable" DROP CONSTRAINT "MixedCaseDbTable_field2_key";'
+        ) + timeouts(
+            'ALTER TABLE "MixedCaseDbTable" DROP COLUMN "field2" CASCADE;'
+        )
+        assert editor.django_sql == [
+            'ALTER TABLE "MixedCaseDbTable" DROP COLUMN "field2" CASCADE;',
+        ]
+
+
+@pytest.mark.django_db
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+def test_remove_field_with_same_db_table_in_other_schema__ok():
+    # the search path hides the other schema, thus its constraint and index must stay out of the introspection
+    with connection.cursor() as cursor:
+        cursor.execute('CREATE SCHEMA "other_schema"')
+        cursor.execute('CREATE TABLE "other_schema"."MixedCaseDbTable" '
+                       '("field2" integer CONSTRAINT "MixedCaseDbTable_field2_other_key" UNIQUE)')
+        cursor.execute('CREATE INDEX "MixedCaseDbTable_field2_other" '
+                       'ON "other_schema"."MixedCaseDbTable" ("field2")')
+        cursor.execute('CREATE TABLE "MixedCaseDbTableOtherRelated" ("related_id" integer '
+                       'CONSTRAINT "MixedCaseDbTableOtherRelated_related_id_fk" '
+                       'REFERENCES "other_schema"."MixedCaseDbTable" ("field2"))')
+    with CoreDatabaseSchemaEditor(connection, atomic=False) as editor:
+        editor.create_model(ModelWithMixedCaseDbTable)
+
+    with cmp_schema_editor() as editor:
+        editor.remove_field(ModelWithMixedCaseDbTable, ModelWithMixedCaseDbTable._meta.get_field('field2'))
+    if django.VERSION[:2] >= (6, 0):
+        assert editor.collected_sql == timeouts(
+            'ALTER TABLE "MixedCaseDbTable" DROP CONSTRAINT "MixedCaseDbTable_field2_key";'
+        ) + timeouts(
+            'ALTER TABLE "MixedCaseDbTable" DROP COLUMN "field2";'
+        )
+        assert editor.django_sql == [
+            'ALTER TABLE "MixedCaseDbTable" DROP COLUMN "field2";',
+        ]
+    else:
+        assert editor.collected_sql == timeouts(
+            'ALTER TABLE "MixedCaseDbTable" DROP CONSTRAINT "MixedCaseDbTable_field2_key";'
+        ) + timeouts(
+            'ALTER TABLE "MixedCaseDbTable" DROP COLUMN "field2" CASCADE;'
+        )
+        assert editor.django_sql == [
+            'ALTER TABLE "MixedCaseDbTable" DROP COLUMN "field2" CASCADE;',
         ]
 
 
