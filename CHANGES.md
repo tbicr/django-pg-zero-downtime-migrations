@@ -1,6 +1,6 @@
 # django-pg-zero-downtime-migrations Changelog
 
-## 0.20 (Unreleased)
+## 0.20
 - added python 3.14 support
 - added django 6.0 support
 - added django 6.1 support
@@ -22,13 +22,11 @@
 - marked postgres 14 support as deprecated
 - dropped postgres 12 support
 - dropped postgres 13 support
-- moved package metadata to `pyproject.toml`
-- moved test configuration to `pyproject.toml`
+- replaced `setup.py`, `setup.cfg` and `MANIFEST.in` with `pyproject.toml`
+- replaced `setuptools` with `hatchling` and generated the pypi description with `hatch-fancy-pypi-readme`
 - replaced `flake8` and `isort` with `ruff`
-- switched the `tox` environments to `uv`
-- switched release builds to `uv build` and updated the github actions
-- replaced `setuptools` with `hatchling` and generated the package description with `hatch-fancy-pypi-readme`
 - replaced `tox` and `docker compose` with a github actions test matrix
+- replaced `pip` and `build` with `uv` in the test environments and the release build
 
 ## 0.19
 - added django 5.2 support

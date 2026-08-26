@@ -117,7 +117,7 @@ jobs:
       matrix:
         include:
           # current versions
-          - name: pg18 django backend
+          - name: pg18 default django backend
             python: "3.14"
             django: "6.1"
             psycopg_package: "psycopg[binary]"
