@@ -2164,3 +2164,120 @@ def test_idempotency_add_auto_field():
         cursor.execute(_sql_drop_sequence_sql)
     call_command("migrate", "idempotency_add_auto_field_app", "0001")
     assert pg_dump("idempotency_add_auto_field_app_relatedtesttable") == old_schema
+
+
+@skip_for_default_django_backend
+@pytest.mark.django_db(transaction=True)
+@modify_settings(INSTALLED_APPS={"append": "tests.apps.idempotency_mixed_case_app"})
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_RAISE_FOR_UNSAFE=True)
+@override_settings(ZERO_DOWNTIME_MIGRATIONS_IDEMPOTENT_SQL=True)
+def test_idempotency_with_mixed_case_names():
+    # a mixed case `db_table` and `db_column` need quotes, thus this covers the table, the column,
+    # the index and the constraint conditions with the quoted identifiers that the schema editor built
+    _create_column_sql = one_line_sql("""
+        ALTER TABLE "MixedCaseIdempotency" ADD COLUMN "MixedCaseColumn" integer NULL;
+    """)
+    _create_unique_index_sql = one_line_sql("""
+        CREATE UNIQUE INDEX CONCURRENTLY "MixedCaseIdempotency_MixedCaseColumn_26d686c2_uniq"
+        ON "MixedCaseIdempotency" ("MixedCaseColumn");
+    """)
+    _create_unique_constraint_sql = one_line_sql("""
+        ALTER TABLE "MixedCaseIdempotency"
+        ADD CONSTRAINT "MixedCaseIdempotency_MixedCaseColumn_26d686c2_uniq"
+        UNIQUE USING INDEX "MixedCaseIdempotency_MixedCaseColumn_26d686c2_uniq";
+    """)
+
+    _drop_unique_constraint_sql = one_line_sql("""
+        ALTER TABLE "MixedCaseIdempotency"
+        DROP CONSTRAINT "MixedCaseIdempotency_MixedCaseColumn_26d686c2_uniq";
+    """)
+
+    if django.VERSION[:2] >= (6, 0):
+        _drop_column_sql = one_line_sql("""
+            ALTER TABLE "MixedCaseIdempotency" DROP COLUMN "MixedCaseColumn";
+        """)
+    else:
+        _drop_column_sql = one_line_sql("""
+            ALTER TABLE "MixedCaseIdempotency" DROP COLUMN "MixedCaseColumn" CASCADE;
+        """)
+
+    # get target schema
+    call_command("migrate", "idempotency_mixed_case_app", "0001")
+    old_schema = pg_dump("MixedCaseIdempotency")
+    call_command("migrate", "idempotency_mixed_case_app")
+    new_schema = pg_dump("MixedCaseIdempotency")
+
+    # migrate
+    call_command("migrate", "idempotency_mixed_case_app", "0001")
+    with override_settings(ZERO_DOWNTIME_MIGRATIONS_IDEMPOTENT_SQL=False):
+        migration_sql = call_command("sqlmigrate", "idempotency_mixed_case_app", "0002")
+    assert split_sql_queries(migration_sql) == [
+        _create_column_sql,
+        _create_unique_index_sql,
+        _create_unique_constraint_sql,
+    ]
+
+    # migrate case 1.1
+    call_command("migrate", "idempotency_mixed_case_app", "0001")
+    with connection.cursor() as cursor:
+        cursor.execute(_create_column_sql)
+        cursor.execute(_create_unique_index_sql)
+    assert is_valid_index(
+        "MixedCaseIdempotency",
+        "MixedCaseIdempotency_MixedCaseColumn_26d686c2_uniq",
+    )
+    call_command("migrate", "idempotency_mixed_case_app")
+    assert pg_dump("MixedCaseIdempotency") == new_schema
+    assert is_valid_constraint(
+        "MixedCaseIdempotency",
+        "MixedCaseIdempotency_MixedCaseColumn_26d686c2_uniq",
+    )
+
+    # migrate case 1.2
+    call_command("migrate", "idempotency_mixed_case_app", "0001")
+    with connection.cursor() as cursor:
+        cursor.execute(_create_column_sql)
+        cursor.execute(_create_unique_index_sql)
+    make_index_invalid(
+        "MixedCaseIdempotency",
+        "MixedCaseIdempotency_MixedCaseColumn_26d686c2_uniq",
+    )
+    call_command("migrate", "idempotency_mixed_case_app")
+    assert pg_dump("MixedCaseIdempotency") == new_schema
+    assert is_valid_constraint(
+        "MixedCaseIdempotency",
+        "MixedCaseIdempotency_MixedCaseColumn_26d686c2_uniq",
+    )
+
+    # migrate case 2
+    call_command("migrate", "idempotency_mixed_case_app", "0001")
+    with connection.cursor() as cursor:
+        cursor.execute(_create_column_sql)
+        cursor.execute(_create_unique_index_sql)
+        cursor.execute(_create_unique_constraint_sql)
+    call_command("migrate", "idempotency_mixed_case_app")
+    assert pg_dump("MixedCaseIdempotency") == new_schema
+
+    # rollback (covers the drop constraint and the drop column cases)
+    call_command("migrate", "idempotency_mixed_case_app")
+    with override_settings(ZERO_DOWNTIME_MIGRATIONS_IDEMPOTENT_SQL=False):
+        rollback_sql = call_command("sqlmigrate", "--backwards", "idempotency_mixed_case_app", "0002")
+    assert split_sql_queries(rollback_sql) == [
+        _drop_unique_constraint_sql,
+        _drop_column_sql,
+    ]
+
+    # rollback case 1
+    call_command("migrate", "idempotency_mixed_case_app")
+    with connection.cursor() as cursor:
+        cursor.execute(_drop_unique_constraint_sql)
+    call_command("migrate", "idempotency_mixed_case_app", "0001")
+    assert pg_dump("MixedCaseIdempotency") == old_schema
+
+    # rollback case 2
+    call_command("migrate", "idempotency_mixed_case_app")
+    with connection.cursor() as cursor:
+        cursor.execute(_drop_unique_constraint_sql)
+        cursor.execute(_drop_column_sql)
+    call_command("migrate", "idempotency_mixed_case_app", "0001")
+    assert pg_dump("MixedCaseIdempotency") == old_schema

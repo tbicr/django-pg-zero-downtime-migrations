@@ -23,7 +23,7 @@ def pg_dump(table: str) -> str:
     user = settings.DB_SUPER_USER
     password = settings.DB_SUPER_PASSWORD
     env = os.environ.copy() | {"PGPASSWORD": password}
-    cmd = f"pg_dump -h {host} -p {port} -U {user} -d {name} -s -t {table} --restrict-key=test"
+    cmd = f"pg_dump -h {host} -p {port} -U {user} -d {name} -s -t '\"{table}\"' --restrict-key=test"
     popen = subprocess.run(cmd, env=env, text=True, shell=True, capture_output=True, check=True)
     return popen.stdout
 
@@ -52,8 +52,8 @@ def make_index_invalid(table: str, index: str):
         cursor.execute("""
             UPDATE pg_index
             SET indisvalid = false
-            WHERE indrelid = %s::regclass::oid
-            AND indexrelid = %s::regclass::oid
+            WHERE indrelid = quote_ident(%s)::regclass::oid
+            AND indexrelid = quote_ident(%s)::regclass::oid
         """, [table, index])
     assert not is_valid_index(table, index)
 
@@ -63,8 +63,8 @@ def is_valid_index(table: str, index: str) -> bool:
         cursor.execute("""
             SELECT indisvalid
             FROM pg_index
-            WHERE indrelid = %s::regclass::oid
-            AND indexrelid = %s::regclass::oid
+            WHERE indrelid = quote_ident(%s)::regclass::oid
+            AND indexrelid = quote_ident(%s)::regclass::oid
         """, [table, index])
         data = cursor.fetchone()
         if data is None:
@@ -77,7 +77,7 @@ def is_valid_constraint(table: str, constraint: str) -> bool:
         cursor.execute("""
             SELECT convalidated
             FROM pg_constraint
-            WHERE conrelid = %s::regclass::oid
+            WHERE conrelid = quote_ident(%s)::regclass::oid
             AND conname = %s
         """, [table, constraint])
         data = cursor.fetchone()

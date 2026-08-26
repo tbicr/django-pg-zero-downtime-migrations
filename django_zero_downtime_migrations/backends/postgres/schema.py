@@ -217,42 +217,55 @@ class DatabaseSchemaEditorMixin:
     _sql_set_statement_timeout = "SET statement_timeout TO '%(statement_timeout)s'"
 
     _sql_identity_exists = (
-        "SELECT 1 FROM information_schema.columns "
-        "WHERE table_name = TRIM('\"' FROM '%(table)s') "
-        "AND column_name = TRIM('\"' FROM '%(column)s')"
-        "AND is_identity = 'YES'"
+        "SELECT 1 FROM pg_attribute "
+        "WHERE attrelid = to_regclass('%(table)s') "
+        "AND attname = (parse_ident('%(column)s'))[1] "
+        "AND attnum > 0 AND NOT attisdropped "
+        "AND attidentity != ''"
     )
-    _sql_sequence_exists = "SELECT 1 FROM pg_class WHERE relname = TRIM('\"' FROM '%(name)s')"
-    _sql_index_exists = "SELECT 1 FROM pg_class WHERE relname = TRIM('\"' FROM '%(name)s')"
-    _sql_table_exists = "SELECT 1 FROM pg_class WHERE relname = TRIM('\"' FROM '%(table)s')"
-    _sql_new_table_exists = "SELECT 1 FROM pg_class WHERE relname = TRIM('\"' FROM '%(new_table)s')"
+    _sql_index_exists = (
+        "SELECT 1 FROM pg_class "
+        "WHERE oid = to_regclass('%(name)s') "
+        "AND relkind IN ('i', 'I')"
+    )
+    _sql_table_exists = (
+        "SELECT 1 FROM pg_class "
+        "WHERE oid = to_regclass('%(table)s') "
+        "AND relkind IN ('r', 'p')"
+    )
+    _sql_new_table_exists = (
+        "SELECT 1 FROM pg_class "
+        "WHERE oid = to_regclass('%(new_table)s') "
+        "AND relkind IN ('r', 'p')"
+    )
     _sql_column_exists = (
-        "SELECT 1 FROM information_schema.columns "
-        "WHERE table_name = TRIM('\"' FROM '%(table)s') "
-        "AND column_name = TRIM('\"' FROM '%(column)s')"
+        "SELECT 1 FROM pg_attribute "
+        "WHERE attrelid = to_regclass('%(table)s') "
+        "AND attname = (parse_ident('%(column)s'))[1] "
+        "AND attnum > 0 AND NOT attisdropped"
     )
     _sql_new_column_exists = (
-        "SELECT 1 FROM information_schema.columns "
-        "WHERE table_name = TRIM('\"' FROM '%(table)s') "
-        "AND column_name = TRIM('\"' FROM '%(new_column)s')"
+        "SELECT 1 FROM pg_attribute "
+        "WHERE attrelid = to_regclass('%(table)s') "
+        "AND attname = (parse_ident('%(new_column)s'))[1] "
+        "AND attnum > 0 AND NOT attisdropped"
     )
     _sql_constraint_exists = (
-        "SELECT 1 FROM information_schema.table_constraints "
-        "WHERE table_name = TRIM('\"' FROM '%(table)s') "
-        "AND constraint_name = TRIM('\"' FROM '%(name)s')"
+        "SELECT 1 FROM pg_constraint "
+        "WHERE conrelid = to_regclass('%(table)s') "
+        "AND conname = (parse_ident('%(name)s'))[1] "
+        "AND contype != 'n'"
     )
     _sql_index_valid = (
-        "SELECT 1 "
-        "FROM pg_index "
-        "WHERE indrelid = TRIM('\"' FROM '%(table)s')::regclass::oid "
-        "AND indexrelid = TRIM('\"' FROM '%(name)s')::regclass::oid "
+        "SELECT 1 FROM pg_index "
+        "WHERE indrelid = to_regclass('%(table)s') "
+        "AND indexrelid = to_regclass('%(name)s') "
         "AND indisvalid"
     )
     _sql_constraint_valid = (
-        "SELECT 1 "
-        "FROM pg_constraint "
-        "WHERE conrelid = TRIM('\"' FROM '%(table)s')::regclass::oid "
-        "AND conname = TRIM('\"' FROM '%(name)s') "
+        "SELECT 1 FROM pg_constraint "
+        "WHERE conrelid = to_regclass('%(table)s') "
+        "AND conname = (parse_ident('%(name)s'))[1] "
         "AND convalidated"
     )
 
@@ -506,7 +519,7 @@ class DatabaseSchemaEditorMixin:
             OR (clref.relname = %s AND pg_catalog.pg_table_is_visible(clref.oid))
         )
         AND pg_catalog.pg_table_is_visible(cl.oid)
-        AND c.contype <> 'n'
+        AND c.contype != 'n'
         ORDER BY cl.relname, c.conname
     """
     _sql_get_index_introspection = r"""
