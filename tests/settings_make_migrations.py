@@ -28,6 +28,7 @@ INSTALLED_APPS += [  # noqa: F405
     'tests.apps.idempotency_add_one_to_one_app',
     'tests.apps.idempotency_add_index_app',
     'tests.apps.idempotency_add_index_meta_app',
+    'tests.apps.idempotency_mixed_case_app',
     'tests.apps.idempotency_add_unique_app',
     'tests.apps.idempotency_add_unique_meta_app',
     'tests.apps.idempotency_add_primary_key_app',
