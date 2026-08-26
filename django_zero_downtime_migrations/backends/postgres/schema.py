@@ -497,8 +497,9 @@ class DatabaseSchemaEditorMixin:
                 ORDER BY cols.arridx
             )
         FROM pg_constraint AS c
-        WHERE c.conrelid::regclass::text = %s
-        OR c.confrelid::regclass::text = %s
+        WHERE (c.conrelid::regclass::text = %s
+        OR c.confrelid::regclass::text = %s)
+        AND c.contype <> 'n'
         ORDER BY c.conrelid::regclass::text, c.conname
     """
     _sql_get_index_introspection = r"""
