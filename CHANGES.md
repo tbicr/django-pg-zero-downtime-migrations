@@ -9,6 +9,7 @@
 - marked `ADD COLUMN GENERATED STORED` as an unsafe operation that warns or raises, because it rewrites the table
 - marked the decimal type cast to a numeric without precision as a safe operation
 - fixed the introspection of constraints and indexes in `sqlmigrate` after a table rename in django 6.1
+- fixed the introspection of constraints and indexes for a `db_table` that needs quotes, as it found nothing and skipped the explicit constraints drop
 - updated the documentation with the django 6.0 `DROP COLUMN` limit for `ZERO_DOWNTIME_MIGRATIONS_EXPLICIT_CONSTRAINTS_DROP=False`, that cannot drop a referenced column
 - marked python 3.8 support as deprecated
 - marked python 3.9 support as deprecated

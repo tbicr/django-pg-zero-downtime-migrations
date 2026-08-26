@@ -476,12 +476,14 @@ class DatabaseSchemaEditorMixin:
         ),
     )
 
+    # the queries below get the unquoted `db_table`, thus they match `relname`
+    # and limit the search to the tables that the search path makes visible
     _sql_get_table_constraints_introspection = r"""
         SELECT
             c.conname,
             c.contype,
-            c.conrelid::regclass::text,
-            c.confrelid::regclass::text,
+            cl.relname,
+            clref.relname,
             array(
                 SELECT attname
                 FROM unnest(c.conkey) WITH ORDINALITY cols(colid, arridx)
@@ -497,15 +499,20 @@ class DatabaseSchemaEditorMixin:
                 ORDER BY cols.arridx
             )
         FROM pg_constraint AS c
-        WHERE (c.conrelid::regclass::text = %s
-        OR c.confrelid::regclass::text = %s)
+        JOIN pg_class AS cl ON c.conrelid = cl.oid
+        LEFT JOIN pg_class AS clref ON c.confrelid = clref.oid
+        WHERE (
+            cl.relname = %s
+            OR (clref.relname = %s AND pg_catalog.pg_table_is_visible(clref.oid))
+        )
+        AND pg_catalog.pg_table_is_visible(cl.oid)
         AND c.contype <> 'n'
-        ORDER BY c.conrelid::regclass::text, c.conname
+        ORDER BY cl.relname, c.conname
     """
     _sql_get_index_introspection = r"""
         SELECT
-            i.indexrelid::regclass::text,
-            i.indrelid::regclass::text,
+            ic.relname,
+            c.relname,
             array(
                 SELECT a.attname
                 FROM (
@@ -518,11 +525,14 @@ class DatabaseSchemaEditorMixin:
                 INNER JOIN pg_attribute AS a ON cols.varattno = a.attnum
                 WHERE a.attrelid = i.indrelid
             )
-        FROM pg_index i
-        LEFT JOIN pg_constraint c ON i.indexrelid = c.conindid
-        WHERE indrelid::regclass::text = %s
-        AND c.conindid IS NULL
-        ORDER BY i.indrelid::regclass::text, i.indexrelid::regclass::text
+        FROM pg_index AS i
+        JOIN pg_class AS c ON i.indrelid = c.oid
+        JOIN pg_class AS ic ON i.indexrelid = ic.oid
+        LEFT JOIN pg_constraint AS con ON i.indexrelid = con.conindid
+        WHERE c.relname = %s
+        AND pg_catalog.pg_table_is_visible(c.oid)
+        AND con.conindid IS NULL
+        ORDER BY c.relname, ic.relname
     """
 
     _varchar_type_regexp = re.compile(r'^varchar\((?P<max_length>\d+)\)$')
